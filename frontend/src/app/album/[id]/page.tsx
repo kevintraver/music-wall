@@ -72,9 +72,6 @@ export default function AlbumPage() {
            width={300}
            height={300}
            className="rounded-lg mx-auto"
-           onError={(e) => {
-             (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x300?text=No+Image';
-           }}
          />
         <h1 className="text-2xl font-bold text-center mt-4">{album.name}</h1>
         <p className="text-center text-gray-400">{album.artist}</p>

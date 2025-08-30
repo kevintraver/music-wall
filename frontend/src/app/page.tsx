@@ -65,9 +65,6 @@ export default function Home() {
                width={200}
                height={200}
                className="rounded-lg"
-               onError={(e) => {
-                 (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200x200?text=No+Image';
-               }}
              />
             <p className="text-center mt-2">{album.name}</p>
             <p className="text-center text-sm text-gray-400">{album.artist}</p>
@@ -93,9 +90,6 @@ export default function Home() {
                width={50}
                height={50}
                className="rounded mr-2 inline"
-               onError={(e) => {
-                 (e.target as HTMLImageElement).src = 'https://via.placeholder.com/50x50?text=No+Image';
-               }}
              />
              <p className="inline">{nowPlaying.name} - {nowPlaying.artist}</p>
            </div>
