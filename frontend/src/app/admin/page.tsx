@@ -24,6 +24,7 @@ export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [albums, setAlbums] = useState<Album[]>([]);
   const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [upNext, setUpNext] = useState<Track[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Album[]>([]);
@@ -59,6 +60,7 @@ export default function AdminPage() {
           console.log('Queue updated:', data.queue.map(t => t.name).join(', '));
         }
         setNowPlaying(data.nowPlaying);
+        setIsPlaying(data.isPlaying);
         setUpNext(data.queue);
       };
       ws.onopen = () => console.log('Admin WS connected');
@@ -175,16 +177,13 @@ export default function AdminPage() {
                             <span className="material-icons text-2xl">skip_previous</span>
                           </button>
                           <button
-                            onClick={() => fetch(`${apiBase}/api/playback/play`, { method: 'POST' })}
+                            onClick={() => {
+                              console.log(isPlaying ? 'Pause button clicked' : 'Play button clicked');
+                              fetch(`${apiBase}/api/playback/${isPlaying ? 'pause' : 'play'}`, { method: 'POST' }).then(() => console.log(isPlaying ? 'Pause' : 'Play', 'command sent'));
+                            }}
                             className="bg-green-500 text-white p-4 rounded-full hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500"
                           >
-                            <span className="material-icons text-3xl">play_arrow</span>
-                          </button>
-                          <button
-                            onClick={() => fetch(`${apiBase}/api/playback/pause`, { method: 'POST' })}
-                            className="bg-green-500 text-white p-4 rounded-full hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500"
-                          >
-                            <span className="material-icons text-4xl">pause</span>
+                            <span className="material-icons text-4xl">{isPlaying ? 'pause' : 'play_arrow'}</span>
                           </button>
                           <button
                             onClick={() => fetch(`${apiBase}/api/playback/next`, { method: 'POST' })}

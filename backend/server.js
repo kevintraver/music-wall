@@ -127,8 +127,11 @@ setInterval(() => {
 setInterval(async () => {
   if (accessToken) {
     try {
+      console.log('Polling for updates...');
       const nowPlayingRes = await spotifyApi.getMyCurrentPlayingTrack();
       const queueRes = await spotifyApi.getMyCurrentPlaybackState();
+      console.log('Now playing:', nowPlayingRes.body.item ? nowPlayingRes.body.item.name : 'None');
+      console.log('Queue length:', queueRes.body.queue ? queueRes.body.queue.length : 0);
       const update = {
         nowPlaying: nowPlayingRes.body.item ? {
           id: nowPlayingRes.body.item.id,
@@ -137,6 +140,7 @@ setInterval(async () => {
           album: nowPlayingRes.body.item.album.name,
           image: nowPlayingRes.body.item.album.images[0]?.url
         } : null,
+        isPlaying: nowPlayingRes.body.is_playing || false,
         queue: queueRes.body.queue ? queueRes.body.queue.slice(0, 10).map(track => ({
           id: track.id,
           name: track.name,
@@ -145,6 +149,7 @@ setInterval(async () => {
           image: track.album.images[0]?.url
         })) : []
       };
+      console.log('Sending WS update with queue:', update.queue.length, 'tracks');
       sendUpdate(update);
     } catch (error) {
       console.error('Error polling for WS:', error);
