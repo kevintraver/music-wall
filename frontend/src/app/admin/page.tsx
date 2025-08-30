@@ -363,7 +363,7 @@ export default function AdminPage() {
       await fetch(`${apiBase}/api/admin/albums/reorder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedAlbums.map(album => ({ id: album.id, position: album.position })))
+        body: JSON.stringify(updatedAlbums)
       });
     } catch (error) {
       console.error('Error updating album positions:', error);
