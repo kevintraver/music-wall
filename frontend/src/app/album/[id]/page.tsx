@@ -40,6 +40,7 @@ export default function AlbumPage() {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       setNowPlaying(data.nowPlaying);
+      setUpNext(data.queue || []);
     };
     return () => ws.close();
   }, []);
