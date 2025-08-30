@@ -332,6 +332,21 @@ app.get('/api/qr/:albumId', async (req, res) => {
 });
 
 // Playback control endpoints
+app.get('/api/playback/status', async (req, res) => {
+  if (!accessToken) {
+    return res.status(401).json({ error: 'Admin not authenticated with Spotify' });
+  }
+  try {
+    const data = await spotifyApi.getMyCurrentPlaybackState();
+    res.json({
+      isPlaying: data.body?.is_playing || false
+    });
+  } catch (error) {
+    console.error('Error getting playback status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/playback/play', async (req, res) => {
   if (!accessToken) {
     return res.status(401).json({ error: 'Admin not authenticated with Spotify' });
