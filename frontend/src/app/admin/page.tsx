@@ -144,8 +144,24 @@ export default function AdminPage() {
             </ul>
           </div>
           <div className="flex gap-2">
-            <button className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">Play/Pause</button>
-            <button className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">Skip</button>
+            <button
+              onClick={() => fetch('http://localhost:3001/api/playback/play', { method: 'POST' })}
+              className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded"
+            >
+              Play
+            </button>
+            <button
+              onClick={() => fetch('http://localhost:3001/api/playback/pause', { method: 'POST' })}
+              className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded"
+            >
+              Pause
+            </button>
+            <button
+              onClick={() => fetch('http://localhost:3001/api/playback/next', { method: 'POST' })}
+              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
+            >
+              Skip
+            </button>
           </div>
         </div>
       </div>

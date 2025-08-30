@@ -5,9 +5,9 @@
     "artist": "The Beatles",
     "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25",
     "tracks": [
-      { "id": "track1", "name": "Come Together", "duration_ms": 259000 },
-      { "id": "track2", "name": "Something", "duration_ms": 182000 },
-      { "id": "track3", "name": "Maxwell's Silver Hammer", "duration_ms": 207000 }
+      { "id": "2EqlS6tkEnglzr7tkKAAYD", "name": "Come Together", "duration_ms": 259000 },
+      { "id": "0JQ5I0hzBJcLk9rLOJzNzg", "name": "Something", "duration_ms": 182000 },
+      { "id": "1nY8xw1dK8oPTQRTi484cI", "name": "Maxwell's Silver Hammer", "duration_ms": 207000 }
     ]
   },
   {
@@ -16,9 +16,9 @@
     "artist": "Daft Punk",
     "image": "https://i.scdn.co/image/ab67616d0000b273b33d5eba326fc63ff4855c4c",
     "tracks": [
-      { "id": "track4", "name": "One More Time", "duration_ms": 320000 },
-      { "id": "track5", "name": "Aerodynamic", "duration_ms": 207000 },
-      { "id": "track6", "name": "Digital Love", "duration_ms": 301000 }
+      { "id": "0tgVpDi06FyKpA1z0VMD4v", "name": "One More Time", "duration_ms": 320000 },
+      { "id": "5W3cjX2J3tjhG8zb6u0qHn", "name": "Aerodynamic", "duration_ms": 207000 },
+      { "id": "1pKYYY0dkg23sQQXi0Q5zN", "name": "Digital Love", "duration_ms": 301000 }
     ]
   },
   {
