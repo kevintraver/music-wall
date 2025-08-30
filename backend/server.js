@@ -382,6 +382,41 @@ app.get('/api/admin/status', (req, res) => {
   res.json({ authenticated: !!accessToken });
 });
 
+app.get('/api/search', async (req, res) => {
+  const query = req.query.q;
+  if (!query) return res.json([]);
+  try {
+    const data = await spotifyApi.searchAlbums(query, { limit: 10 });
+    const results = data.body.albums.items.map(album => ({
+      id: album.id,
+      name: album.name,
+      artist: album.artists[0].name,
+      image: album.images[0]?.url
+    }));
+    res.json(results);
+  } catch (error) {
+    console.error('Search error:', error);
+    res.json([]);
+  }
+});
+
+app.post('/api/admin/albums', (req, res) => {
+  const newAlbum = req.body;
+  if (!albums.find(a => a.id === newAlbum.id)) {
+    albums.push(newAlbum);
+    // Save to file
+    fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+  }
+  res.json({ success: true });
+});
+
+app.delete('/api/admin/albums/:id', (req, res) => {
+  const id = req.params.id;
+  albums = albums.filter(a => a.id !== id);
+  fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+  res.json({ success: true });
+});
+
 app.listen(PORT, () => {
   console.log(`Backend running on port ${PORT}`);
 });

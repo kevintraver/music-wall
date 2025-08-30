@@ -23,7 +23,8 @@ export default function AdminPage() {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
   const [upNext, setUpNext] = useState<Track[]>([]);
-  const [newAlbumId, setNewAlbumId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Album[]>([]);
   const [apiBase, setApiBase] = useState('');
 
   useEffect(() => {
@@ -68,6 +69,28 @@ export default function AdminPage() {
     } else {
       alert('Invalid credentials');
     }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery) return;
+    const res = await fetch(`${apiBase}/api/search?q=${encodeURIComponent(searchQuery)}`);
+    const results = await res.json();
+    setSearchResults(results);
+  };
+
+  const addAlbum = async (album: Album) => {
+    await fetch(`${apiBase}/api/admin/albums`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(album)
+    });
+    setAlbums([...albums, album]);
+    setSearchResults(searchResults.filter(a => a.id !== album.id));
+  };
+
+  const removeAlbum = async (id: string) => {
+    await fetch(`${apiBase}/api/admin/albums/${id}`, { method: 'DELETE' });
+    setAlbums(albums.filter(a => a.id !== id));
   };
 
   const addAlbum = async () => {
@@ -117,25 +140,45 @@ export default function AdminPage() {
     <div className="min-h-screen bg-gray-900 text-white p-4">
       <h1 className="text-4xl font-bold mb-8">Admin Dashboard</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div>
-          <h2 className="text-2xl font-semibold mb-4">Album Management</h2>
+          <h2 className="text-2xl font-semibold mb-4">Search & Add Albums</h2>
           <div className="mb-4">
             <input
               type="text"
-              placeholder="Album ID"
-              value={newAlbumId}
-              onChange={(e) => setNewAlbumId(e.target.value)}
-              className="p-2 bg-gray-700 rounded mr-2"
+              placeholder="Search albums..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full p-2 bg-gray-700 rounded mb-2"
             />
-            <button onClick={addAlbum} className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">
-              Add Album
+            <button onClick={handleSearch} className="w-full bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">
+              Search
             </button>
           </div>
-          <ul className="space-y-2">
+          <ul className="space-y-2 max-h-64 overflow-y-auto">
+            {searchResults.map(album => (
+              <li key={album.id} className="flex justify-between items-center bg-gray-800 p-3 rounded">
+                <div className="flex items-center">
+                  <img src={album.image} alt={album.name} width={40} height={40} className="rounded mr-2" />
+                  <span>{album.name} - {album.artist}</span>
+                </div>
+                <button onClick={() => addAlbum(album)} className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">
+                  Add
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <h2 className="text-2xl font-semibold mb-4">Current Albums on Wall</h2>
+          <ul className="space-y-2 max-h-64 overflow-y-auto">
             {albums.map(album => (
               <li key={album.id} className="flex justify-between items-center bg-gray-800 p-3 rounded">
-                <span>{album.name} - {album.artist}</span>
+                <div className="flex items-center">
+                  <img src={album.image} alt={album.name} width={40} height={40} className="rounded mr-2" />
+                  <span>{album.name} - {album.artist}</span>
+                </div>
                 <button onClick={() => removeAlbum(album.id)} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">
                   Remove
                 </button>
@@ -149,37 +192,43 @@ export default function AdminPage() {
           {nowPlaying && (
             <div className="bg-gray-800 p-4 rounded mb-4">
               <h3 className="font-semibold">Now Playing</h3>
-              <p>{nowPlaying.name} - {nowPlaying.artist}</p>
+              <div className="flex items-center">
+                <img src={nowPlaying.image} alt={nowPlaying.name} width={50} height={50} className="rounded mr-2" />
+                <p>{nowPlaying.name} - {nowPlaying.artist}</p>
+              </div>
             </div>
           )}
           <div className="bg-gray-800 p-4 rounded mb-4">
             <h3 className="font-semibold">Up Next</h3>
-            <ul>
+            <ul className="max-h-32 overflow-y-auto">
               {upNext.map(track => (
-                <li key={track.id}>{track.name} - {track.artist}</li>
+                <li key={track.id} className="flex items-center mb-2">
+                  <img src={track.album} alt={track.name} width={30} height={30} className="rounded mr-2" />
+                  <span>{track.name} - {track.artist}</span>
+                </li>
               ))}
             </ul>
           </div>
-           <div className="flex gap-2">
-             <button
-               onClick={() => fetch(`${apiBase}/api/playback/play`, { method: 'POST' })}
-               className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded"
-             >
-               Play
-             </button>
-             <button
-               onClick={() => fetch(`${apiBase}/api/playback/pause`, { method: 'POST' })}
-               className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded"
-             >
-               Pause
-             </button>
-             <button
-               onClick={() => fetch(`${apiBase}/api/playback/next`, { method: 'POST' })}
-               className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
-             >
-               Skip
-             </button>
-           </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => fetch(`${apiBase}/api/playback/play`, { method: 'POST' })}
+              className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded"
+            >
+              Play
+            </button>
+            <button
+              onClick={() => fetch(`${apiBase}/api/playback/pause`, { method: 'POST' })}
+              className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded"
+            >
+              Pause
+            </button>
+            <button
+              onClick={() => fetch(`${apiBase}/api/playback/next`, { method: 'POST' })}
+              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
+            >
+              Skip
+            </button>
+          </div>
         </div>
       </div>
     </div>
