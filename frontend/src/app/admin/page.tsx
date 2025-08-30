@@ -24,30 +24,37 @@ export default function AdminPage() {
   const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
   const [upNext, setUpNext] = useState<Track[]>([]);
   const [newAlbumId, setNewAlbumId] = useState('');
+  const [apiBase, setApiBase] = useState('');
 
   useEffect(() => {
-    if (isLoggedIn) {
-      fetch('http://localhost:3001/api/albums')
+    const base = `http://${window.location.hostname}:3001`;
+    setApiBase(base);
+  }, []);
+
+  useEffect(() => {
+    if (isLoggedIn && apiBase) {
+      fetch(`${apiBase}/api/albums`)
         .then(res => res.json())
         .then(setAlbums);
-      fetch('http://localhost:3001/api/now-playing')
+      fetch(`${apiBase}/api/now-playing`)
         .then(res => res.json())
         .then(setNowPlaying);
-      fetch('http://localhost:3001/api/queue')
+      fetch(`${apiBase}/api/queue`)
         .then(res => res.json())
         .then(setUpNext);
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, apiBase]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch('http://localhost:3001/api/admin/login', {
+    const res = await fetch(`${apiBase}/api/admin/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
     });
-    if (res.ok) {
-      setIsLoggedIn(true);
+    const data = await res.json();
+    if (res.ok && data.redirect) {
+      window.location.href = `${apiBase}${data.redirect}`;
     } else {
       alert('Invalid credentials');
     }
@@ -143,26 +150,26 @@ export default function AdminPage() {
               ))}
             </ul>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => fetch('http://localhost:3001/api/playback/play', { method: 'POST' })}
-              className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded"
-            >
-              Play
-            </button>
-            <button
-              onClick={() => fetch('http://localhost:3001/api/playback/pause', { method: 'POST' })}
-              className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded"
-            >
-              Pause
-            </button>
-            <button
-              onClick={() => fetch('http://localhost:3001/api/playback/next', { method: 'POST' })}
-              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
-            >
-              Skip
-            </button>
-          </div>
+           <div className="flex gap-2">
+             <button
+               onClick={() => fetch(`${apiBase}/api/playback/play`, { method: 'POST' })}
+               className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded"
+             >
+               Play
+             </button>
+             <button
+               onClick={() => fetch(`${apiBase}/api/playback/pause`, { method: 'POST' })}
+               className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded"
+             >
+               Pause
+             </button>
+             <button
+               onClick={() => fetch(`${apiBase}/api/playback/next`, { method: 'POST' })}
+               className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
+             >
+               Skip
+             </button>
+           </div>
         </div>
       </div>
     </div>
