@@ -96,7 +96,17 @@ async function refreshAccessToken() {
 }
 
 // Load albums from JSON
-let albums = JSON.parse(fs.readFileSync(path.join(__dirname, '../albums.json'), 'utf8'));
+function loadAlbums() {
+  try {
+    const data = fs.readFileSync(path.join(__dirname, '../albums.json'), 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error loading albums.json:', error);
+    return [];
+  }
+}
+
+let albums = loadAlbums();
 
 // Spotify API setup
 const spotifyApi = new SpotifyWebApi({
@@ -155,7 +165,7 @@ setInterval(async () => {
       console.error('Error polling for WS:', error);
     }
   }
-}, 5000);
+}, 3000); // Reduced to 3s for even better sync
 
 // OAuth routes
 app.get('/auth/login', (req, res) => {
@@ -198,30 +208,38 @@ app.get('/callback', async (req, res) => {
 
 // Routes
 app.get('/api/albums', async (req, res) => {
-  try {
-    const enrichedAlbums = await Promise.all(albums.map(async (album) => {
-      try {
-        const data = await spotifyApi.getAlbum(album.id);
-        return {
-          ...album,
-          image: data.body.images[0]?.url || album.image
-        };
-      } catch (error) {
-        console.error('Error fetching album:', album.id, error.message);
-        return album;
-      }
-    }));
-    res.json(enrichedAlbums);
-  } catch (error) {
-    console.error('Error in /api/albums:', error);
-    res.json(albums);
-  }
+  // Just return the albums from JSON without enriching to avoid rate limits
+  // The images are already stored in the JSON file
+  res.json(albums);
 });
+
+// Simple cache to avoid repeated API calls
+const albumCache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 app.get('/api/album/:id', async (req, res) => {
   const albumId = req.params.id;
+  console.log('Fetching album:', albumId, 'User token available:', !!accessToken);
+  
+  // Check cache first
+  const cached = albumCache.get(albumId);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    console.log('Returning cached album data for:', albumId);
+    return res.json(cached.data);
+  }
+  
   try {
+    // Use user token if available for better access, otherwise use client credentials
+    if (accessToken) {
+      spotifyApi.setAccessToken(accessToken);
+    }
+    
+    // Add small delay to avoid rate limiting
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     const data = await spotifyApi.getAlbum(albumId);
+    console.log('Successfully fetched album from Spotify:', data.body.name, 'with', data.body.tracks.items.length, 'tracks');
+    
     const album = {
       id: data.body.id,
       name: data.body.name,
@@ -230,17 +248,36 @@ app.get('/api/album/:id', async (req, res) => {
       tracks: data.body.tracks.items.map(track => ({
         id: track.id,
         name: track.name,
-        duration_ms: track.duration_ms
+        duration_ms: track.duration_ms,
+        artist: track.artists[0]?.name
       }))
     };
+    
+    // Cache the result
+    albumCache.set(albumId, { data: album, timestamp: Date.now() });
+    
     res.json(album);
   } catch (error) {
-    console.error('Error fetching album:', albumId, error.message);
-    // Fallback to JSON
+    console.error('Spotify API error for album', albumId, ':', {
+      message: error.message,
+      statusCode: error.statusCode,
+      body: error.body
+    });
+    
+    // If rate limited, wait and don't hit fallback immediately
+    if (error.statusCode === 429) {
+      console.log('Rate limited, waiting before fallback...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    
+    // Fallback to JSON data - reload albums first
+    albums = loadAlbums();
     const album = albums.find(a => a.id === albumId);
     if (album) {
+      console.log('Using fallback JSON data for album:', albumId, 'with', album.tracks?.length || 0, 'tracks');
       res.json(album);
     } else {
+      console.log('Album not found in JSON fallback:', albumId);
       res.status(404).json({ error: 'Album not found' });
     }
   }
@@ -331,6 +368,23 @@ app.get('/api/qr/:albumId', async (req, res) => {
   }
 });
 
+// Throttling for playback controls
+const playbackThrottle = {
+  play: { lastCall: 0, minInterval: 1000 }, // 1 second minimum between play calls
+  pause: { lastCall: 0, minInterval: 1000 }, // 1 second minimum between pause calls
+  next: { lastCall: 0, minInterval: 1000 } // 1 second minimum between next calls
+};
+
+function isThrottled(action) {
+  const now = Date.now();
+  const throttle = playbackThrottle[action];
+  if (now - throttle.lastCall < throttle.minInterval) {
+    return true;
+  }
+  throttle.lastCall = now;
+  return false;
+}
+
 // Playback control endpoints
 app.get('/api/playback/status', async (req, res) => {
   if (!accessToken) {
@@ -351,6 +405,11 @@ app.post('/api/playback/play', async (req, res) => {
   if (!accessToken) {
     return res.status(401).json({ error: 'Admin not authenticated with Spotify' });
   }
+
+  if (isThrottled('play')) {
+    return res.status(429).json({ error: 'Playback commands are being sent too frequently. Please wait a moment.' });
+  }
+
   try {
     const devices = await spotifyApi.getMyDevices();
     const activeDevice = devices.body.devices.find(d => d.is_active);
@@ -371,6 +430,11 @@ app.post('/api/playback/pause', async (req, res) => {
   if (!accessToken) {
     return res.status(401).json({ error: 'Admin not authenticated with Spotify' });
   }
+
+  if (isThrottled('pause')) {
+    return res.status(429).json({ error: 'Playback commands are being sent too frequently. Please wait a moment.' });
+  }
+
   try {
     await spotifyApi.pause();
     res.json({ success: true });
@@ -384,11 +448,95 @@ app.post('/api/playback/next', async (req, res) => {
   if (!accessToken) {
     return res.status(401).json({ error: 'Admin not authenticated with Spotify' });
   }
+
+  if (isThrottled('next')) {
+    return res.status(429).json({ error: 'Playback commands are being sent too frequently. Please wait a moment.' });
+  }
+
   try {
     await spotifyApi.skipToNext();
     res.json({ success: true });
   } catch (error) {
     console.error('Error skipping:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Immediate state verification endpoint
+app.get('/api/playback/verify', async (req, res) => {
+  if (!accessToken) {
+    return res.status(401).json({ error: 'Admin not authenticated with Spotify' });
+  }
+
+  try {
+    const [nowPlayingRes, playbackStateRes] = await Promise.all([
+      spotifyApi.getMyCurrentPlayingTrack(),
+      spotifyApi.getMyCurrentPlaybackState()
+    ]);
+
+    const verifiedState = {
+      nowPlaying: nowPlayingRes.body.item ? {
+        id: nowPlayingRes.body.item.id,
+        name: nowPlayingRes.body.item.name,
+        artist: nowPlayingRes.body.item.artists[0].name,
+        album: nowPlayingRes.body.item.album.name,
+        image: nowPlayingRes.body.item.album.images[0]?.url
+      } : null,
+      isPlaying: nowPlayingRes.body.is_playing || false,
+      queue: playbackStateRes.body.queue ? playbackStateRes.body.queue.slice(0, 10).map(track => ({
+        id: track.id,
+        name: track.name,
+        artist: track.artists[0].name,
+        album: track.album.name,
+        image: track.album.images[0]?.url
+      })) : []
+    };
+
+    res.json(verifiedState);
+  } catch (error) {
+    console.error('Error verifying playback state:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Force sync endpoint - manually trigger WebSocket update
+app.post('/api/playback/sync', async (req, res) => {
+  if (!accessToken) {
+    return res.status(401).json({ error: 'Admin not authenticated with Spotify' });
+  }
+
+  try {
+    const [nowPlayingRes, playbackStateRes] = await Promise.all([
+      spotifyApi.getMyCurrentPlayingTrack(),
+      spotifyApi.getMyCurrentPlaybackState()
+    ]);
+
+    const syncUpdate = {
+      type: 'sync',
+      nowPlaying: nowPlayingRes.body.item ? {
+        id: nowPlayingRes.body.item.id,
+        name: nowPlayingRes.body.item.name,
+        artist: nowPlayingRes.body.item.artists[0].name,
+        album: nowPlayingRes.body.item.album.name,
+        image: nowPlayingRes.body.item.album.images[0]?.url
+      } : null,
+      isPlaying: nowPlayingRes.body.is_playing || false,
+      queue: playbackStateRes.body.queue ? playbackStateRes.body.queue.slice(0, 10).map(track => ({
+        id: track.id,
+        name: track.name,
+        artist: track.artists[0].name,
+        album: track.album.name,
+        image: track.album.images[0]?.url
+      })) : []
+    };
+
+    // Send immediate WebSocket update
+    sendUpdate(syncUpdate);
+    console.log('Manual sync triggered, WebSocket update sent');
+
+    res.json({ success: true, state: syncUpdate });
+  } catch (error) {
+    console.error('Error during manual sync:', error);
     res.status(500).json({ error: error.message });
   }
 });
