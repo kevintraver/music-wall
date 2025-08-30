@@ -5,12 +5,56 @@ const fs = require('fs');
 const path = require('path');
 const SpotifyWebApi = require('spotify-web-api-node');
 const QRCode = require('qrcode');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+
+// OAuth variables
+let codeVerifier = '';
+let accessToken = '';
+let refreshToken = '';
+
+// PKCE helpers
+function generateCodeVerifier() {
+  return crypto.randomBytes(32).toString('base64url');
+}
+
+function generateCodeChallenge(verifier) {
+  const hash = crypto.createHash('sha256').update(verifier).digest();
+  return hash.toString('base64url');
+}
+
+// Refresh token function
+async function refreshAccessToken() {
+  if (!refreshToken) return;
+  try {
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: process.env.SPOTIFY_CLIENT_ID,
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }),
+    });
+    const data = await response.json();
+    if (data.access_token) {
+      accessToken = data.access_token;
+      if (data.refresh_token) {
+        refreshToken = data.refresh_token;
+      }
+      spotifyApi.setAccessToken(accessToken);
+    }
+  } catch (error) {
+    console.error('Error refreshing token:', error);
+  }
+}
 
 // Load albums from JSON
 let albums = JSON.parse(fs.readFileSync(path.join(__dirname, '../albums.json'), 'utf8'));
@@ -36,6 +80,48 @@ async function authenticateSpotify() {
 // Initialize authentication
 authenticateSpotify();
 setInterval(authenticateSpotify, 3600000); // Refresh token every hour
+setInterval(() => {
+  if (refreshToken) refreshAccessToken();
+}, 3000000); // Refresh user token every 50 min
+
+// OAuth routes
+app.get('/auth/login', (req, res) => {
+  codeVerifier = generateCodeVerifier();
+  const codeChallenge = generateCodeChallenge(codeVerifier);
+  const scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private';
+  const authUrl = `https://accounts.spotify.com/authorize?client_id=${process.env.SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent('http://127.0.0.1:3001/callback')}&code_challenge_method=S256&code_challenge=${codeChallenge}&scope=${encodeURIComponent(scopes)}`;
+  res.redirect(authUrl);
+});
+
+app.get('/callback', async (req, res) => {
+  const code = req.query.code;
+  if (!code) {
+    return res.status(400).send('No code provided');
+  }
+  try {
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: process.env.SPOTIFY_CLIENT_ID,
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: 'http://127.0.0.1:3001/callback',
+        code_verifier: codeVerifier,
+      }),
+    });
+    const data = await response.json();
+    accessToken = data.access_token;
+    refreshToken = data.refresh_token;
+    spotifyApi.setAccessToken(accessToken);
+    res.redirect('http://localhost:3000/admin'); // Redirect to admin page
+  } catch (error) {
+    console.error('Error exchanging code:', error);
+    res.status(500).send('Auth failed');
+  }
+});
 
 // Routes
 app.get('/api/albums', (req, res) => {
@@ -59,6 +145,9 @@ app.get('/api/album/:id', async (req, res) => {
 });
 
 app.post('/api/queue', async (req, res) => {
+  if (!accessToken) {
+    return res.status(401).json({ error: 'Admin not authenticated with Spotify' });
+  }
   const { trackId } = req.body;
   try {
     // Get available devices
@@ -79,6 +168,9 @@ app.post('/api/queue', async (req, res) => {
 });
 
 app.get('/api/now-playing', async (req, res) => {
+  if (!accessToken) {
+    return res.status(401).json({ error: 'Admin not authenticated with Spotify' });
+  }
   try {
     const data = await spotifyApi.getMyCurrentPlayingTrack();
     if (data.body.item) {
@@ -99,6 +191,9 @@ app.get('/api/now-playing', async (req, res) => {
 });
 
 app.get('/api/queue', async (req, res) => {
+  if (!accessToken) {
+    return res.status(401).json({ error: 'Admin not authenticated with Spotify' });
+  }
   try {
     const data = await spotifyApi.getMyCurrentPlaybackState();
     if (data.body.queue) {
@@ -131,6 +226,9 @@ app.get('/api/qr/:albumId', async (req, res) => {
 
 // Playback control endpoints
 app.post('/api/playback/play', async (req, res) => {
+  if (!accessToken) {
+    return res.status(401).json({ error: 'Admin not authenticated with Spotify' });
+  }
   try {
     const devices = await spotifyApi.getMyDevices();
     const songwallDevice = devices.body.devices.find(d => d.name === 'SongWall Player');
@@ -148,6 +246,9 @@ app.post('/api/playback/play', async (req, res) => {
 });
 
 app.post('/api/playback/pause', async (req, res) => {
+  if (!accessToken) {
+    return res.status(401).json({ error: 'Admin not authenticated with Spotify' });
+  }
   try {
     await spotifyApi.pause();
     res.json({ success: true });
@@ -158,6 +259,9 @@ app.post('/api/playback/pause', async (req, res) => {
 });
 
 app.post('/api/playback/next', async (req, res) => {
+  if (!accessToken) {
+    return res.status(401).json({ error: 'Admin not authenticated with Spotify' });
+  }
   try {
     await spotifyApi.skipToNext();
     res.json({ success: true });
@@ -169,10 +273,10 @@ app.post('/api/playback/next', async (req, res) => {
 
 // Admin routes
 app.post('/api/admin/login', (req, res) => {
-  // Basic auth
+  // Basic auth check, then redirect to Spotify OAuth
   const { username, password } = req.body;
   if (username === 'admin' && password === 'password') {
-    res.json({ token: 'fake-token' });
+    res.json({ redirect: '/auth/login' });
   } else {
     res.status(401).json({ error: 'Invalid credentials' });
   }
