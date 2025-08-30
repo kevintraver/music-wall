@@ -47,6 +47,16 @@ export default function AdminPage() {
     }
   }, [isLoggedIn, apiBase]);
 
+  // Fetch initial queue when logged in
+  useEffect(() => {
+    if (isLoggedIn && apiBase) {
+      fetch(`${apiBase}/api/queue`)
+        .then(res => res.json())
+        .then(setUpNext)
+        .catch(() => setUpNext([]));
+    }
+  }, [isLoggedIn, apiBase]);
+
   useEffect(() => {
     if (isLoggedIn) {
       const ws = new WebSocket(`ws://${window.location.hostname}:3002`);
@@ -160,6 +170,35 @@ export default function AdminPage() {
         <main className="flex-grow">
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Queue panel */}
+              <div className="lg:col-span-1 bg-white p-6 rounded-xl shadow-md flex flex-col">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">Queue</h2>
+                <div className="flex-grow space-y-4">
+                  <ul className="space-y-3">
+                    {upNext.length === 0 && (
+                      <li className="text-gray-500">Queue is empty</li>
+                    )}
+                    {upNext.map((t) => (
+                      <li key={t.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                        <div className="flex items-center space-x-4">
+                          <span className="material-icons text-gray-400">drag_indicator</span>
+                          {/* Image not available from queue API; keeping layout consistent */}
+                          {/* <img alt={`${t.album} cover`} className="w-12 h-12 rounded-md object-cover" src={t.image} /> */}
+                          <div>
+                            <p className="font-medium text-gray-900">{t.name}</p>
+                            <p className="text-sm text-gray-500">{t.artist}</p>
+                          </div>
+                        </div>
+                        <button className="text-red-500 hover:text-red-700" title="Remove from queue" disabled>
+                          <span className="material-icons">remove_circle_outline</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* Now Playing panel */}
               <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md flex flex-col">
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">Now Playing</h2>
                 <div className="flex-grow flex flex-col sm:flex-row items-center justify-center text-center sm:text-left bg-gray-800 text-white p-6 rounded-lg mb-4 gap-6">
@@ -178,8 +217,7 @@ export default function AdminPage() {
                           </button>
                           <button
                             onClick={() => {
-                              console.log(isPlaying ? 'Pause button clicked' : 'Play button clicked');
-                              fetch(`${apiBase}/api/playback/${isPlaying ? 'pause' : 'play'}`, { method: 'POST' }).then(() => console.log(isPlaying ? 'Pause' : 'Play', 'command sent'));
+                              fetch(`${apiBase}/api/playback/${isPlaying ? 'pause' : 'play'}`, { method: 'POST' });
                             }}
                             className="bg-green-500 text-white p-4 rounded-full hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500"
                           >
@@ -200,41 +238,45 @@ export default function AdminPage() {
                   )}
                 </div>
               </div>
-              <div className="lg:col-span-1 bg-white p-6 rounded-xl shadow-md">
-                <h2 className="text-xl font-semibold text-gray-800 mb-4">Search & Add Albums</h2>
-                <div className="space-y-4">
-                  <div className="relative">
-                    <span className="material-icons absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">search</span>
-                    <input
-                      type="text"
-                      placeholder="Search albums..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                  </div>
-                  <div className="mt-4 border-t border-gray-200 pt-4">
-                    <h3 className="text-lg font-medium text-gray-700 mb-3">Search Results</h3>
-                    <ul className="space-y-3">
-                      {searchResults.map(album => (
-                        <li key={album.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer" onClick={() => addAlbum(album)}>
-                          <div className="flex items-center space-x-4">
-                            <img alt={`${album.name} album cover`} className="w-12 h-12 rounded-md object-cover" src={album.image} />
-                            <div>
-                              <p className="font-medium text-gray-900">{album.name}</p>
-                              <p className="text-sm text-gray-500">{album.artist}</p>
-                            </div>
+            </div>
+
+            {/* Search & Add Albums full-width */}
+            <div className="mt-8 bg-white p-6 rounded-xl shadow-md lg:col-span-3">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Search & Add Albums</h2>
+              <div className="space-y-4">
+                <div className="relative">
+                  <span className="material-icons absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">search</span>
+                  <input
+                    type="text"
+                    placeholder="Search albums..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <div className="mt-4 border-t border-gray-200 pt-4">
+                  <h3 className="text-lg font-medium text-gray-700 mb-3">Search Results</h3>
+                  <ul className="space-y-3">
+                    {searchResults.map(album => (
+                      <li key={album.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer" onClick={() => addAlbum(album)}>
+                        <div className="flex items-center space-x-4">
+                          <img alt={`${album.name} album cover`} className="w-12 h-12 rounded-md object-cover" src={album.image} />
+                          <div>
+                            <p className="font-medium text-gray-900">{album.name}</p>
+                            <p className="text-sm text-gray-500">{album.artist}</p>
                           </div>
-                          <button className="text-green-500 hover:text-green-700">
-                            <span className="material-icons">add_circle_outline</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                        </div>
+                        <button className="text-green-500 hover:text-green-700">
+                          <span className="material-icons">add_circle_outline</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             </div>
+
+            {/* Current Wall */}
             <div className="mt-8 bg-white p-6 rounded-xl shadow-md">
               <h2 className="text-2xl font-semibold text-gray-800 mb-6">Current Wall</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
