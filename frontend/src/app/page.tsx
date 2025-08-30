@@ -31,7 +31,6 @@ export default function Home() {
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
   const [queueLoaded, setQueueLoaded] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     const base = `http://${window.location.hostname}:3001`;
@@ -166,45 +165,13 @@ export default function Home() {
     return () => window.clearInterval(id);
   }, [apiBase]);
 
-  const refreshAlbums = async () => {
-    if (!apiBase || refreshing) return;
-    setRefreshing(true);
-    try {
-      const response = await fetch(`${apiBase}/api/albums`);
-      if (response.ok) {
-        const albumsData = await response.json();
-        setAlbums(albumsData);
-      }
-    } catch (error) {
-      console.error('Error refreshing albums:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  };
+
 
   return (
     <div className="h-screen bg-black text-white px-8 pt-8 pb-6 flex flex-col overflow-hidden">
       {/* Connection status indicator */}
-      <div className="fixed top-4 right-4 z-50 flex items-center space-x-4">
-        <button
-          onClick={refreshAlbums}
-          disabled={refreshing}
-          className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-3 py-2 rounded-lg shadow-lg transition-colors duration-200 flex items-center space-x-2"
-          title="Refresh albums"
-        >
-          <span className="material-icons text-sm">
-            {refreshing ? 'refresh' : 'sync'}
-          </span>
-          <span className="text-sm">
-            {refreshing ? 'Refreshing...' : 'Refresh'}
-          </span>
-        </button>
-        <div className="flex items-center space-x-2 bg-gray-800 px-3 py-2 rounded-lg shadow-lg">
-          <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <span className="text-sm text-gray-300">
-            {wsConnected ? 'Connected' : 'Disconnected'}
-          </span>
-        </div>
+      <div className="fixed top-4 right-4 z-50">
+        <div className={`w-3 h-3 rounded-full shadow-lg ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
       </div>
 
       {/* Album Grid */}
@@ -252,22 +219,22 @@ export default function Home() {
             <h2 className="text-lg font-bold mb-2 mt-1 text-center">Now Playing</h2>
             {playbackLoaded ? (
               nowPlaying ? (
-                <div className="flex items-center gap-4 justify-center">
+                <div className="flex items-center gap-6 justify-center">
+                  <div className="flex-1 text-center ml-8">
+                    <p className="text-base font-bold mb-1">{nowPlaying.name}</p>
+                    <p className="text-sm text-gray-300">{nowPlaying.artist}</p>
+                  </div>
                   {nowPlaying.image ? (
                     <img
                       src={nowPlaying.image}
                       alt={nowPlaying.name}
                       width={120}
                       height={120}
-                      className="rounded-lg shadow-lg ml-2"
+                      className="rounded-lg shadow-lg"
                     />
                   ) : (
-                    <Skeleton className="w-[120px] h-[120px] rounded-lg ml-2" />
+                    <Skeleton className="w-[120px] h-[120px] rounded-lg" />
                   )}
-                  <div className="flex-1 text-center">
-                    <p className="text-base font-bold mb-1">{nowPlaying.name}</p>
-                    <p className="text-sm text-gray-300">{nowPlaying.artist}</p>
-                  </div>
                 </div>
               ) : (
                 <div className="py-4">
@@ -275,13 +242,13 @@ export default function Home() {
                 </div>
               )
               ) : (
-                <div className="flex items-center gap-4 justify-center">
-                  <Skeleton className="w-[120px] h-[120px] rounded-lg ml-2" />
-                  <div className="flex-1 text-center">
-                    <Skeleton className="w-32 h-4 mb-1" />
-                    <Skeleton className="w-24 h-3" />
+                <div className="flex items-center gap-6 justify-center">
+                  <div className="flex-1 text-center ml-8">
+                    <Skeleton className="w-28 h-3 mb-1" />
+                    <Skeleton className="w-20 h-3" />
                   </div>
-                </div>
+                   <Skeleton className="w-[120px] h-[120px] rounded-lg" />
+                 </div>
               )}
           </div>
         </div>

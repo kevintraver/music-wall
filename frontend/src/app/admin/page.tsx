@@ -43,6 +43,7 @@ export default function AdminPage() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [lastAlbumUpdate, setLastAlbumUpdate] = useState<number>(0);
+  const [playbackUpdatePending, setPlaybackUpdatePending] = useState(false);
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
   const [queueLoaded, setQueueLoaded] = useState(false);
   const [playbackActionLoading, setPlaybackActionLoading] = useState<string | null>(null);
@@ -166,6 +167,10 @@ export default function AdminPage() {
           if (normalized.length) setUpNext(normalized);
           setPlaybackLoaded(true);
           setQueueLoaded(true);
+
+          // Clear loading states when WebSocket confirms updates
+          setPlaybackActionLoading(null);
+          setPlaybackUpdatePending(false);
         } catch (error) {
           console.error('Error processing WebSocket message:', error);
         }
@@ -280,17 +285,45 @@ export default function AdminPage() {
   };
 
   const handlePlaybackAction = async (action: string, endpoint: string) => {
-    setPlaybackActionLoading(action);
+    // Don't show loading for pause actions
+    if (action !== 'pause') {
+      setPlaybackActionLoading(action);
+    }
+    if (action !== 'pause') {
+      setPlaybackUpdatePending(true);
+    }
+
+    // Optimistically update UI for play/pause
+    if (action === 'play' || action === 'pause') {
+      setIsPlaying(action === 'play');
+    }
+
     try {
       const res = await fetch(`${apiBase}${endpoint}`, { method: 'POST' });
       if (!res.ok) {
         throw new Error(`Playback ${action} failed`);
       }
+      // Keep loading state until WebSocket confirms the update (except for pause)
+      if (action !== 'pause') {
+        setTimeout(() => {
+          if (playbackActionLoading === action) {
+            setPlaybackActionLoading(null);
+            setPlaybackUpdatePending(false);
+          }
+        }, 2000); // Fallback timeout
+      } else {
+        // For pause, clear immediately since it's typically instant
+        setPlaybackActionLoading(null);
+        setPlaybackUpdatePending(false);
+      }
     } catch (error) {
       console.error(`Error ${action}:`, error);
-      // Could add user notification here
-    } finally {
+      // Revert optimistic updates on error
+      if (action === 'play' || action === 'pause') {
+        setIsPlaying(action === 'pause'); // Revert to opposite
+      }
       setPlaybackActionLoading(null);
+      setPlaybackUpdatePending(false);
     }
   };
 
@@ -422,14 +455,26 @@ export default function AdminPage() {
       setIsDragging(false);
     };
 
+    const handleGlobalDragEnd = (_e: DragEvent) => {
+      // Clean up any lingering drag state
+      if (draggedAlbum) {
+        setDraggedAlbum(null);
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+        setIsDragging(false);
+      }
+    };
+
     if (draggedAlbum) {
       document.addEventListener('dragover', handleGlobalDragOver);
       document.addEventListener('drop', handleGlobalDrop);
+      document.addEventListener('dragend', handleGlobalDragEnd);
     }
 
     return () => {
       document.removeEventListener('dragover', handleGlobalDragOver);
       document.removeEventListener('drop', handleGlobalDrop);
+      document.removeEventListener('dragend', handleGlobalDragEnd);
     };
   }, [draggedAlbum]);
 
@@ -537,8 +582,16 @@ export default function AdminPage() {
               {/* Now Playing panel */}
               <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md flex flex-col">
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">Now Playing</h2>
-                <div className="flex-grow flex flex-col sm:flex-row items-center justify-center text-center bg-gray-800 text-white p-6 rounded-lg mb-4 gap-6">
-                  {playbackLoaded ? (
+                 <div className="flex-grow flex flex-col sm:flex-row items-center justify-center text-center bg-gray-800 text-white p-6 rounded-lg mb-4 gap-6 relative">
+                   {playbackUpdatePending && (
+                     <div className="absolute inset-0 bg-black/20 flex items-center justify-center rounded-lg z-10">
+                       <div className="flex items-center space-x-2 bg-gray-900/90 px-4 py-2 rounded-lg">
+                         <span className="material-icons animate-spin text-sm">sync</span>
+                         <span className="text-sm">Updating...</span>
+                       </div>
+                     </div>
+                   )}
+                   {playbackLoaded ? (
                     nowPlaying ? (
                     <>
                       <img alt={`${nowPlaying.album} album cover`} className="w-48 h-48 rounded-lg shadow-lg" src={nowPlaying.image} />
@@ -559,27 +612,19 @@ export default function AdminPage() {
                                <span className="material-icons text-3xl">skip_previous</span>
                              )}
                            </button>
-                          <button
-                            type="button"
-                            aria-label={isPlaying ? 'Pause' : 'Play'}
-                            onClick={async () => {
-                              const wasPlaying = isPlaying;
-                              const action = wasPlaying ? 'pause' : 'play';
-                              // Optimistically toggle UI state
-                              setIsPlaying(!wasPlaying);
-                              try {
-                                const res = await fetch(`${apiBase}/api/playback/${action}`, { method: 'POST' });
-                                if (!res.ok) throw new Error(`Playback ${action} failed`);
-                              } catch (e) {
-                                // Revert UI state on failure
-                                setIsPlaying(wasPlaying);
-                                console.error(e);
-                              }
-                            }}
-                            className="bg-green-500 text-white w-16 h-16 rounded-full hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500 flex items-center justify-center"
-                          >
-                            <span className="material-icons text-4xl">{isPlaying ? 'pause' : 'play_arrow'}</span>
-                          </button>
+                           <button
+                             type="button"
+                             aria-label={isPlaying ? 'Pause' : 'Play'}
+                             onClick={() => handlePlaybackAction(isPlaying ? 'pause' : 'play', `/api/playback/${isPlaying ? 'pause' : 'play'}`)}
+                             disabled={playbackActionLoading === 'play' || playbackActionLoading === 'pause'}
+                             className="bg-green-500 text-white w-16 h-16 rounded-full hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                           >
+                             {playbackActionLoading === 'play' || playbackActionLoading === 'pause' ? (
+                               <span className="material-icons animate-spin text-3xl">autorenew</span>
+                             ) : (
+                               <span className="material-icons text-4xl">{isPlaying ? 'pause' : 'play_arrow'}</span>
+                             )}
+                           </button>
                            <button
                              type="button"
                              aria-label="Next"
