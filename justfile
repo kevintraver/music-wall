@@ -1,22 +1,30 @@
 # Song Wall Development Commands
 
-# Install all dependencies
+# Install all dependencies (including pm2 for process management)
 install:
     cd backend && npm install
     cd ../frontend && npm install
+    npm install -g pm2
 
 # Start backend server
 start-backend:
-    cd backend && npm start
+    pm2 start "cd backend && npm start" --name songwall-backend || just start-backend-fallback
 
 # Start frontend dev server
 start-frontend:
-    cd frontend && npm run dev
+    pm2 start "cd frontend && npm run dev" --name songwall-frontend || just start-frontend-fallback
 
 # Start both backend and frontend
 start-all:
-    just start-backend &
-    just start-frontend &
+    just start-backend
+    just start-frontend
+
+# Fallbacks without pm2
+start-backend-fallback:
+    cd backend && npm start &
+
+start-frontend-fallback:
+    cd frontend && npm run dev &
 
 # Run Spotifyd (requires config file)
 spotifyd:
@@ -29,14 +37,22 @@ clean:
 
 # Stop all processes
 stop:
+    pm2 stop all || just stop-fallback
+
+# Restart all processes
+restart:
+    pm2 restart all || (just stop-fallback && just start-all-fallback)
+
+# Fallback stop without pm2
+stop-fallback:
     -pkill -f "node server.js"
     -pkill -f "next dev"
     -pkill spotifyd
 
-# Restart all processes
-restart:
-    just stop
-    just start-all
+# Fallback start without pm2
+start-all-fallback:
+    just start-backend-fallback
+    just start-frontend-fallback
 
 # Full setup (install + start)
 setup:
