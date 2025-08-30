@@ -93,21 +93,7 @@ export default function AdminPage() {
     setAlbums(albums.filter(a => a.id !== id));
   };
 
-  const addAlbum = async () => {
-    // For prototype, just add a mock album
-    const mockAlbum: Album = {
-      id: newAlbumId,
-      name: 'New Album',
-      artist: 'New Artist',
-      image: 'https://via.placeholder.com/200'
-    };
-    setAlbums([...albums, mockAlbum]);
-    setNewAlbumId('');
-  };
 
-  const removeAlbum = (id: string) => {
-    setAlbums(albums.filter(a => a.id !== id));
-  };
 
   if (!isLoggedIn) {
     return (
