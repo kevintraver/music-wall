@@ -105,17 +105,24 @@ export default function AlbumPage() {
         <div className="mt-8">
           <h2 className="text-xl font-semibold mb-4">Tracks</h2>
           <ul className="space-y-2">
-            {album.tracks.map(track => (
-              <li key={track.id} className="flex justify-between items-center bg-gray-800 p-3 rounded">
-                <span>{track.name}</span>
-                <button
-                  onClick={() => queueTrack(track.id)}
-                  className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded"
-                >
-                  Queue
-                </button>
-              </li>
-            ))}
+            {album.tracks.map(track => {
+              const isQueued = upNext.some(t => t.id === track.id);
+              return (
+                <li key={track.id} className="flex justify-between items-center bg-gray-800 p-3 rounded">
+                  <span>{track.name}</span>
+                  {isQueued ? (
+                    <span className="text-green-400 font-semibold">Queued</span>
+                  ) : (
+                    <button
+                      onClick={() => queueTrack(track.id)}
+                      className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded"
+                    >
+                      Queue
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       </div>
