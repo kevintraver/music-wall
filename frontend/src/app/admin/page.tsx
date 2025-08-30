@@ -25,6 +25,7 @@ export default function AdminPage() {
   const [upNext, setUpNext] = useState<Track[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Album[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [apiBase, setApiBase] = useState('');
 
   useEffect(() => {
@@ -71,12 +72,20 @@ export default function AdminPage() {
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery) return;
-    const res = await fetch(`${apiBase}/api/search?q=${encodeURIComponent(searchQuery)}`);
-    const results = await res.json();
-    setSearchResults(results);
-  };
+  useEffect(() => {
+    if (!searchQuery || !apiBase) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      const res = await fetch(`${apiBase}/api/search?q=${encodeURIComponent(searchQuery)}`);
+      const results = await res.json();
+      setSearchResults(results);
+      setShowDropdown(true);
+    }, 300); // Debounce 300ms
+    return () => clearTimeout(timeout);
+  }, [searchQuery, apiBase]);
 
   const addAlbum = async (album: Album) => {
     await fetch(`${apiBase}/api/admin/albums`, {
@@ -129,31 +138,30 @@ export default function AdminPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div>
           <h2 className="text-2xl font-semibold mb-4">Search & Add Albums</h2>
-          <div className="mb-4">
+          <div className="mb-4 relative">
             <input
               type="text"
               placeholder="Search albums..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full p-2 bg-gray-700 rounded mb-2"
+              className="w-full p-2 bg-gray-700 rounded"
             />
-            <button onClick={handleSearch} className="w-full bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">
-              Search
-            </button>
+            {showDropdown && searchResults.length > 0 && (
+              <ul className="absolute top-full left-0 right-0 bg-gray-800 rounded mt-1 max-h-64 overflow-y-auto z-10">
+                {searchResults.map(album => (
+                  <li key={album.id} className="flex justify-between items-center p-3 hover:bg-gray-700 cursor-pointer" onClick={() => { addAlbum(album); setSearchQuery(''); setShowDropdown(false); }}>
+                    <div className="flex items-center">
+                      <img src={album.image} alt={album.name} width={40} height={40} className="rounded mr-2" />
+                      <span>{album.name} - {album.artist}</span>
+                    </div>
+                    <button className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm">
+                      Add
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          <ul className="space-y-2 max-h-64 overflow-y-auto">
-            {searchResults.map(album => (
-              <li key={album.id} className="flex justify-between items-center bg-gray-800 p-3 rounded">
-                <div className="flex items-center">
-                  <img src={album.image} alt={album.name} width={40} height={40} className="rounded mr-2" />
-                  <span>{album.name} - {album.artist}</span>
-                </div>
-                <button onClick={() => addAlbum(album)} className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">
-                  Add
-                </button>
-              </li>
-            ))}
-          </ul>
         </div>
 
         <div>
