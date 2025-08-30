@@ -6,9 +6,9 @@ A web app for displaying a grid of albums with QR codes. Guests scan to queue tr
 
 - Wall view: Grid of albums with QR codes
 - Mobile flow: Scan QR → select track → queue
-- Now Playing and Up Next bars
+- Real-time Now Playing and Up Next updates via WebSocket
 - Admin dashboard: Login, manage albums, control playback
-- Spotifyd integration for playback on host device
+- Spotify app integration for playback on host device
 
 ## Prerequisites
 
@@ -82,6 +82,6 @@ PM2 provides better process management with logs, monitoring, and graceful resta
 
 - Uses JSON file for albums (albums.json)
 - In-memory state for queue
-- Polling for realtime updates (5s interval)
+- WebSocket for real-time updates (5s interval)
 - Basic auth for admin (admin/password)
 - OAuth2 PKCE for Spotify user authentication
