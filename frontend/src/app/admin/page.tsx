@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import Skeleton from "@/components/Skeleton";
+import AlbumWall from "@/components/AlbumWall";
 import { normalizeQueue } from "@/lib/queue";
+import NowPlayingPanel from "@/components/NowPlayingPanel";
 
 interface Album {
   id: string;
@@ -31,6 +33,7 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Album[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isDebouncing, setIsDebouncing] = useState(false);
   const [pendingAddId, setPendingAddId] = useState<string | null>(null);
   const [apiBase, setApiBase] = useState('');
   const abortRef = useRef<AbortController | null>(null);
@@ -38,11 +41,7 @@ export default function AdminPage() {
   // Keep a stable reference to albums to avoid re-triggering searches on add
   const albumsRef = useRef<Album[]>([]);
   const [albumsLoading, setAlbumsLoading] = useState(true);
-  const [draggedAlbum, setDraggedAlbum] = useState<Album | null>(null);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [lastAlbumUpdate, setLastAlbumUpdate] = useState<number>(0);
+  // Drag-and-drop state is isolated inside AlbumWall to avoid unrelated re-renders
   const [playbackUpdatePending, setPlaybackUpdatePending] = useState(false);
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
   const [queueLoaded, setQueueLoaded] = useState(false);
@@ -141,30 +140,30 @@ export default function AdminPage() {
           if (data.nowPlaying) {
             console.log('Now playing:', data.nowPlaying.name, 'by', data.nowPlaying.artist);
           }
-          if (data.queue && data.queue.length > 0) {
+          if (Array.isArray?.(data.queue)) {
             console.log('Queue updated:', data.queue.map((t: any) => t.name).join(', '));
           }
           if (data.albums && Array.isArray(data.albums)) {
             console.log('Albums updated:', data.albums.length, 'albums');
-            const now = Date.now();
-            // Don't update albums if we're currently dragging to prevent conflicts
-            // Also debounce rapid updates (minimum 500ms between updates)
-            if (!isDragging && (now - lastAlbumUpdate) > 500) {
-              // Only update if the albums actually changed
-              const albumsChanged = JSON.stringify(data.albums) !== JSON.stringify(albums);
-              if (albumsChanged) {
-                setAlbums(data.albums);
-                setLastAlbumUpdate(now);
-              }
+            // Only update if the albums actually changed
+            const albumsChanged = JSON.stringify(data.albums) !== JSON.stringify(albums);
+            if (albumsChanged) {
+              setAlbums(data.albums);
             }
           }
-          setNowPlaying(data.nowPlaying);
-          // Fallback: if server doesn't include isPlaying, keep previous value
+          // Only update nowPlaying if the payload includes the field
+          if ('nowPlaying' in data) {
+            setNowPlaying(data.nowPlaying);
+          }
+          // Update isPlaying if provided
           if (typeof data.isPlaying === 'boolean') {
             setIsPlaying(data.isPlaying);
           }
-          const normalized = normalizeQueue(data);
-          if (normalized.length) setUpNext(normalized);
+          // Only update queue if included (even if empty)
+          if ('queue' in data) {
+            const normalized = normalizeQueue(data);
+            setUpNext(normalized);
+          }
           setPlaybackLoaded(true);
           setQueueLoaded(true);
 
@@ -255,7 +254,18 @@ export default function AdminPage() {
   useEffect(() => {
     if (!apiBase) return;
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    debounceRef.current = window.setTimeout(() => performSearch(searchQuery), 300);
+
+    if (searchQuery.trim()) {
+      setIsDebouncing(true);
+      debounceRef.current = window.setTimeout(() => {
+        setIsDebouncing(false);
+        performSearch(searchQuery);
+      }, 300);
+    } else {
+      setIsDebouncing(false);
+      setSearchResults([]);
+    }
+
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
@@ -284,7 +294,7 @@ export default function AdminPage() {
     setAlbums(albums.filter(a => a.id !== id));
   };
 
-  const handlePlaybackAction = async (action: string, endpoint: string) => {
+  const handlePlaybackAction = useCallback(async (action: string, endpoint: string) => {
     // Don't show loading for pause actions
     if (action !== 'pause') {
       setPlaybackActionLoading(action);
@@ -325,7 +335,7 @@ export default function AdminPage() {
       setPlaybackActionLoading(null);
       setPlaybackUpdatePending(false);
     }
-  };
+  }, [apiBase]);
 
   const refreshPlaybackData = async () => {
     if (!apiBase) return;
@@ -352,64 +362,9 @@ export default function AdminPage() {
     }
   };
 
-  const handleDragStart = (e: React.DragEvent, album: Album, index: number) => {
-    e.stopPropagation();
-    setDraggedAlbum(album);
-    setDraggedIndex(index);
-    setIsDragging(true);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', album.id);
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = 'move';
-
-    if (draggedIndex !== null && draggedIndex !== index) {
-      setDragOverIndex(index);
-    }
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Only clear dragOverIndex if we're actually leaving the drop zone
-    setDragOverIndex(null);
-  };
-
-  const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (!draggedAlbum || draggedIndex === null) {
-      setDraggedAlbum(null);
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      return;
-    }
-
-    if (draggedIndex === dropIndex) {
-      setDraggedAlbum(null);
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      return;
-    }
-
-    // Reorder albums
-    const newAlbums = [...albums];
-    const [removed] = newAlbums.splice(draggedIndex, 1);
-    newAlbums.splice(dropIndex, 0, removed);
-
-    // Update positions
-    const updatedAlbums = newAlbums.map((album, index) => ({
-      ...album,
-      position: index
-    }));
-
+  // Handle album reorder coming from AlbumWall
+  const handleReorder = async (updatedAlbums: Album[]) => {
     setAlbums(updatedAlbums);
-
-    // Update positions on server
     try {
       await fetch(`${apiBase}/api/admin/albums/reorder`, {
         method: 'POST',
@@ -419,64 +374,7 @@ export default function AdminPage() {
     } catch (error) {
       console.error('Error updating album positions:', error);
     }
-
-    setDraggedAlbum(null);
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-    setIsDragging(false);
   };
-
-  const handleDragEnd = () => {
-    setDraggedAlbum(null);
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-    setIsDragging(false);
-  };
-
-  // Global drag event handlers to prevent interference with other UI elements
-  useEffect(() => {
-    const handleGlobalDragOver = (e: DragEvent) => {
-      // Only prevent default if we're actually dragging something from our component
-      if (draggedAlbum) {
-        e.preventDefault();
-        e.dataTransfer!.dropEffect = 'move';
-      }
-    };
-
-    const handleGlobalDrop = (e: DragEvent) => {
-      // Only handle drops if we're dragging from our component
-      if (!draggedAlbum) return;
-
-      e.preventDefault();
-      // Reset drag state if dropped outside valid drop zones
-      setDraggedAlbum(null);
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      setIsDragging(false);
-    };
-
-    const handleGlobalDragEnd = (_e: DragEvent) => {
-      // Clean up any lingering drag state
-      if (draggedAlbum) {
-        setDraggedAlbum(null);
-        setDraggedIndex(null);
-        setDragOverIndex(null);
-        setIsDragging(false);
-      }
-    };
-
-    if (draggedAlbum) {
-      document.addEventListener('dragover', handleGlobalDragOver);
-      document.addEventListener('drop', handleGlobalDrop);
-      document.addEventListener('dragend', handleGlobalDragEnd);
-    }
-
-    return () => {
-      document.removeEventListener('dragover', handleGlobalDragOver);
-      document.removeEventListener('drop', handleGlobalDrop);
-      document.removeEventListener('dragend', handleGlobalDragEnd);
-    };
-  }, [draggedAlbum]);
 
 
 
@@ -580,86 +478,14 @@ export default function AdminPage() {
               </div>
 
               {/* Now Playing panel */}
-              <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md flex flex-col">
-                <h2 className="text-xl font-semibold text-gray-800 mb-4">Now Playing</h2>
-                 <div className="flex-grow flex flex-col sm:flex-row items-center justify-center text-center bg-gray-800 text-white p-6 rounded-lg mb-4 gap-6 relative">
-                   {playbackUpdatePending && (
-                     <div className="absolute inset-0 bg-black/20 flex items-center justify-center rounded-lg z-10">
-                       <div className="flex items-center space-x-2 bg-gray-900/90 px-4 py-2 rounded-lg">
-                         <span className="material-icons animate-spin text-sm">sync</span>
-                         <span className="text-sm">Updating...</span>
-                       </div>
-                     </div>
-                   )}
-                   {playbackLoaded ? (
-                    nowPlaying ? (
-                    <>
-                      <img alt={`${nowPlaying.album} album cover`} className="w-48 h-48 rounded-lg shadow-lg" src={nowPlaying.image} />
-                      <div className="flex-1 flex flex-col items-center text-center">
-                        <p className="text-3xl font-bold">{nowPlaying.name}</p>
-                        <p className="text-xl text-gray-300 mt-1">{nowPlaying.artist}</p>
-                        <div className="flex items-center justify-center space-x-6 mt-6">
-                           <button
-                             type="button"
-                             aria-label="Previous"
-                             onClick={() => handlePlaybackAction('previous', '/api/playback/previous')}
-                             disabled={playbackActionLoading === 'previous'}
-                             className="bg-gray-700 text-white w-14 h-14 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                           >
-                             {playbackActionLoading === 'previous' ? (
-                               <span className="material-icons animate-spin text-2xl">autorenew</span>
-                             ) : (
-                               <span className="material-icons text-3xl">skip_previous</span>
-                             )}
-                           </button>
-                           <button
-                             type="button"
-                             aria-label={isPlaying ? 'Pause' : 'Play'}
-                             onClick={() => handlePlaybackAction(isPlaying ? 'pause' : 'play', `/api/playback/${isPlaying ? 'pause' : 'play'}`)}
-                             disabled={playbackActionLoading === 'play' || playbackActionLoading === 'pause'}
-                             className="bg-green-500 text-white w-16 h-16 rounded-full hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                           >
-                             {playbackActionLoading === 'play' || playbackActionLoading === 'pause' ? (
-                               <span className="material-icons animate-spin text-3xl">autorenew</span>
-                             ) : (
-                               <span className="material-icons text-4xl">{isPlaying ? 'pause' : 'play_arrow'}</span>
-                             )}
-                           </button>
-                           <button
-                             type="button"
-                             aria-label="Next"
-                             onClick={() => handlePlaybackAction('next', '/api/playback/next')}
-                             disabled={playbackActionLoading === 'next'}
-                             className="bg-gray-700 text-white w-14 h-14 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                           >
-                             {playbackActionLoading === 'next' ? (
-                               <span className="material-icons animate-spin text-2xl">autorenew</span>
-                             ) : (
-                               <span className="material-icons text-3xl">skip_next</span>
-                             )}
-                           </button>
-                        </div>
-                      </div>
-                    </>
-                    ) : (
-                      <p className="text-xl">No track playing</p>
-                    )
-                  ) : (
-                    <div className="w-full flex items-center justify-center gap-6">
-                      <Skeleton className="w-48 h-48 rounded-lg" />
-                      <div className="flex-1 max-w-sm">
-                        <Skeleton className="w-3/4 h-7" />
-                        <Skeleton className="w-1/2 h-5 mt-3" />
-                        <div className="flex items-center justify-center space-x-6 mt-6">
-                          <Skeleton className="w-14 h-14 rounded-full" />
-                          <Skeleton className="w-16 h-16 rounded-full" />
-                          <Skeleton className="w-14 h-14 rounded-full" />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <NowPlayingPanel
+                nowPlaying={nowPlaying}
+                isPlaying={isPlaying}
+                playbackLoaded={playbackLoaded}
+                playbackUpdatePending={playbackUpdatePending}
+                playbackActionLoading={playbackActionLoading}
+                onAction={handlePlaybackAction}
+              />
             </div>
 
             {/* Wall (left) + Search (right) */}
@@ -667,79 +493,12 @@ export default function AdminPage() {
               {/* Wall left: 2 columns */}
               <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md">
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">Current Wall</h2>
-                <div
-                  className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-5 gap-6"
-                  onDragOver={(e) => {
-                    // Prevent drag over from bubbling up to parent elements
-                    if (draggedAlbum) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }
-                  }}
-                >
-                  {albumsLoading ? (
-                    Array.from({ length: 10 }).map((_, i) => (
-                      <div key={i} className="group relative">
-                        <Skeleton className="w-full h-auto rounded-lg aspect-square shadow-md" />
-                        <div className="mt-3 text-center">
-                          <Skeleton className="w-3/4 h-4 mx-auto" />
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    [...albums].sort((a, b) => a.position - b.position).map((album, index) => {
-                      const isDraggedItem = draggedAlbum?.id === album.id;
-                      const isDropTarget = dragOverIndex === index;
-                      const shouldShift = dragOverIndex !== null && draggedIndex !== null &&
-                                         ((index > draggedIndex && index <= dragOverIndex) ||
-                                          (index < draggedIndex && index >= dragOverIndex));
-
-                      return (
-                        <div
-                          key={album.id}
-                          draggable={!isDraggedItem}
-                          onDragStart={(e) => handleDragStart(e, album, index)}
-                          onDragOver={(e) => handleDragOver(e, index)}
-                          onDragLeave={(e) => handleDragLeave(e)}
-                          onDrop={(e) => handleDrop(e, index)}
-                          onDragEnd={handleDragEnd}
-                          className={`group relative cursor-move transition-all duration-200 select-none ${
-                            isDraggedItem ? 'opacity-50 scale-95' : ''
-                          } ${
-                            isDropTarget ? 'ring-2 ring-blue-500 ring-offset-2' : ''
-                          } ${
-                            shouldShift ? 'transform translate-x-2' : ''
-                          }`}
-                          style={{
-                            transform: shouldShift ? 'translateX(8px)' : 'translateX(0px)',
-                            transition: 'transform 0.2s ease',
-                            userSelect: 'none',
-                            WebkitUserSelect: 'none'
-                          }}
-                        >
-                          <img alt={`${album.name} album cover`} className="w-full h-auto rounded-lg object-cover aspect-square shadow-md" src={album.image} />
-                          <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
-                            {index + 1}
-                          </div>
-                          <button
-                            onClick={() => removeAlbum(album.id)}
-                            className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
-                          >
-                            <span className="material-icons text-base">delete</span>
-                          </button>
-                          <div className="absolute bottom-2 left-2 right-2 bg-black/70 text-white p-2 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                            <p className="font-semibold text-sm leading-tight truncate">{album.name}</p>
-                            <p className="text-xs text-gray-300 truncate">{album.artist}</p>
-                          </div>
-                          <div className="mt-3 text-center">
-                            <p className="font-semibold text-gray-800 text-base leading-tight">{album.name}</p>
-                            <p className="text-sm text-gray-500 mt-1">{album.artist}</p>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+                <AlbumWall
+                  albums={albums}
+                  albumsLoading={albumsLoading}
+                  onReorder={handleReorder}
+                  onRemove={removeAlbum}
+                />
               </div>
 
               {/* Search right: 1 column with internal scroll */}
@@ -770,7 +529,7 @@ export default function AdminPage() {
                     {searchQuery && !isSearching && (
                       <button
                         aria-label="Clear search"
-                        onClick={() => { setSearchQuery(''); setSearchResults([]); }}
+                        onClick={() => { setSearchQuery(''); setSearchResults([]); setIsDebouncing(false); }}
                         className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                         type="button"
                       >
@@ -801,7 +560,7 @@ export default function AdminPage() {
                             </li>
                           ))
                         )}
-                        {!isSearching && searchResults.length === 0 && searchQuery.trim() && (
+                        {!isSearching && !isDebouncing && searchResults.length === 0 && searchQuery.trim() && (
                           <li className="text-gray-500 px-3">No results</li>
                         )}
                         {!isSearching && searchResults.map(album => (
