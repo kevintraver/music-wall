@@ -59,13 +59,16 @@ export default function Home() {
       <div className="flex-1 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
         {albums.map(album => (
           <div key={album.id} className="flex flex-col items-center">
-            <Image
-              src={album.image}
-              alt={album.name}
-              width={200}
-              height={200}
-              className="rounded-lg"
-            />
+             <img
+               src={album.image}
+               alt={album.name}
+               width={200}
+               height={200}
+               className="rounded-lg"
+               onError={(e) => {
+                 (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200x200?text=No+Image';
+               }}
+             />
             <p className="text-center mt-2">{album.name}</p>
             <p className="text-center text-sm text-gray-400">{album.artist}</p>
             {qrs[album.id] && (
@@ -81,12 +84,22 @@ export default function Home() {
         ))}
       </div>
       <div className="mt-8">
-        {nowPlaying && (
-          <div className="bg-gray-800 p-4 rounded mb-4">
-            <h2 className="text-xl font-semibold">Now Playing</h2>
-            <p>{nowPlaying.name} - {nowPlaying.artist}</p>
-          </div>
-        )}
+         {nowPlaying && (
+           <div className="bg-gray-800 p-4 rounded">
+             <h2 className="text-xl font-semibold">Now Playing</h2>
+             <img
+               src={nowPlaying.image}
+               alt={nowPlaying.name}
+               width={50}
+               height={50}
+               className="rounded mr-2 inline"
+               onError={(e) => {
+                 (e.target as HTMLImageElement).src = 'https://via.placeholder.com/50x50?text=No+Image';
+               }}
+             />
+             <p className="inline">{nowPlaying.name} - {nowPlaying.artist}</p>
+           </div>
+         )}
         {upNext.length > 0 && (
           <div className="bg-gray-800 p-4 rounded">
             <h2 className="text-xl font-semibold">Up Next</h2>

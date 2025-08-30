@@ -191,23 +191,52 @@ app.get('/callback', async (req, res) => {
 });
 
 // Routes
-app.get('/api/albums', (req, res) => {
-  res.json(albums);
+app.get('/api/albums', async (req, res) => {
+  try {
+    const enrichedAlbums = await Promise.all(albums.map(async (album) => {
+      try {
+        const data = await spotifyApi.getAlbum(album.id);
+        return {
+          ...album,
+          image: data.body.images[0]?.url || album.image
+        };
+      } catch (error) {
+        console.error('Error fetching album:', album.id, error.message);
+        return album;
+      }
+    }));
+    res.json(enrichedAlbums);
+  } catch (error) {
+    console.error('Error in /api/albums:', error);
+    res.json(albums);
+  }
 });
 
 app.get('/api/album/:id', async (req, res) => {
   const albumId = req.params.id;
   try {
-    // In prototype, just return from JSON or fetch from Spotify
+    const data = await spotifyApi.getAlbum(albumId);
+    const album = {
+      id: data.body.id,
+      name: data.body.name,
+      artist: data.body.artists[0].name,
+      image: data.body.images[0]?.url,
+      tracks: data.body.tracks.items.map(track => ({
+        id: track.id,
+        name: track.name,
+        duration_ms: track.duration_ms
+      }))
+    };
+    res.json(album);
+  } catch (error) {
+    console.error('Error fetching album:', albumId, error.message);
+    // Fallback to JSON
     const album = albums.find(a => a.id === albumId);
     if (album) {
-      // Fetch tracks from Spotify if needed
       res.json(album);
     } else {
       res.status(404).json({ error: 'Album not found' });
     }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
   }
 });
 
