@@ -1,68 +1,20 @@
 [
   {
-    "id": "0ETFjACtuP2ADo6LFhL8m",
-    "name": "Abbey Road",
-    "artist": "The Beatles",
-    "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25",
-    "tracks": [
-      { "id": "2EqlS6tkEnglzr7tkKAAYD", "name": "Come Together", "duration_ms": 259000 },
-      { "id": "0JQ5I0hzBJcLk9rLOJzNzg", "name": "Something", "duration_ms": 182000 },
-      { "id": "1nY8xw1dK8oPTQRTi484cI", "name": "Maxwell's Silver Hammer", "duration_ms": 207000 }
-    ]
+    "id": "5Ab6nQ9lH6UsBy3IenRuly",
+    "name": "Downward",
+    "artist": "Rezz",
+    "image": "https://i.scdn.co/image/ab67616d0000b2733b790e5c51a74a48cd9ef163"
   },
   {
-    "id": "2noRn2Aes5aoNVsU6iWThc",
-    "name": "Discovery",
-    "artist": "Daft Punk",
-    "image": "https://i.scdn.co/image/ab67616d0000b273b33d5eba326fc63ff4855c4c",
-    "tracks": [
-      { "id": "0tgVpDi06FyKpA1z0VMD4v", "name": "One More Time", "duration_ms": 320000 },
-      { "id": "5W3cjX2J3tjhG8zb6u0qHn", "name": "Aerodynamic", "duration_ms": 207000 },
-      { "id": "1pKYYY0dkg23sQQXi0Q5zN", "name": "Digital Love", "duration_ms": 301000 }
-    ]
+    "id": "5ZZaeoU9S11FSKSYYxn0US",
+    "name": "Glass Veins",
+    "artist": "Rezz",
+    "image": "https://i.scdn.co/image/ab67616d0000b273117f076d1a653d486571f350"
   },
   {
-    "id": "4m2880jivSbbyEGAKgA3r",
-    "name": "Random Access Memories",
-    "artist": "Daft Punk",
-    "image": "https://i.scdn.co/image/ab67616d0000b2739b9b36b0e22870b9f542d937",
-    "tracks": [
-      { "id": "track7", "name": "Give Life Back to Music", "duration_ms": 274000 },
-      { "id": "track8", "name": "The Game of Love", "duration_ms": 321000 },
-      { "id": "track9", "name": "Giorgio by Moroder", "duration_ms": 544000 }
-    ]
-  },
-  {
-    "id": "3kEtdS2pH6h6dNHU7VIht",
-    "name": "Illmatic",
-    "artist": "Nas",
-    "image": "https://i.scdn.co/image/ab67616d0000b273f8a8a9b6e5b9b9b9b9b9b9b9",
-    "tracks": [
-      { "id": "track10", "name": "The Genesis", "duration_ms": 113000 },
-      { "id": "track11", "name": "N.Y. State of Mind", "duration_ms": 293000 },
-      { "id": "track12", "name": "Life's a Bitch", "duration_ms": 212000 }
-    ]
-  },
-  {
-    "id": "20r762YmB5HeofjMCiP",
-    "name": "My Beautiful Dark Twisted Fantasy",
-    "artist": "Kanye West",
-    "image": "https://i.scdn.co/image/ab67616d0000b2730f3a6a4b8b8b8b8b8b8b8b8b",
-    "tracks": [
-      { "id": "track13", "name": "Dark Fantasy", "duration_ms": 292000 },
-      { "id": "track14", "name": "All of the Lights", "duration_ms": 299000 },
-      { "id": "track15", "name": "Runaway", "duration_ms": 547000 }
-    ]
-  },
-  {
-    "id": "4Uv86qWpGTxf7fU7lG5X6",
-    "name": "The College Dropout",
-    "artist": "Kanye West",
-    "image": "https://i.scdn.co/image/ab67616d0000b2734f9b6b8b8b8b8b8b8b8b8b8b",
-    "tracks": [
-      { "id": "track16", "name": "Through the Wire", "duration_ms": 221000 },
-      { "id": "track17", "name": "The New Workout Plan", "duration_ms": 324000 },
-      { "id": "track18", "name": "Slow Jamz", "duration_ms": 310000 }
-    ]
+    "id": "03gbq51oxT0TqEBZ1JSWYe",
+    "name": "Apache",
+    "artist": "BVRNOUT",
+    "image": "https://i.scdn.co/image/ab67616d0000b27332847045828acb4ce3f25369"
   }
 ]
