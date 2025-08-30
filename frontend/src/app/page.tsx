@@ -92,9 +92,15 @@ export default function Home() {
           if (data.albums && Array.isArray(data.albums)) {
             setAlbums(data.albums);
           }
-          setNowPlaying(data.nowPlaying);
-          const normalized = normalizeQueue(data);
-          if (normalized.length) setUpNext(normalized);
+          // Only update nowPlaying if it's explicitly provided and not undefined
+          if ('nowPlaying' in data && data.nowPlaying !== undefined) {
+            setNowPlaying(data.nowPlaying);
+          }
+          // Only update queue if it's explicitly included in the message
+          if ('queue' in data) {
+            const normalized = normalizeQueue(data);
+            setUpNext(normalized);
+          }
           setPlaybackLoaded(true);
           setQueueLoaded(true);
         } catch (error) {

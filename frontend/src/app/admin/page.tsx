@@ -151,8 +151,8 @@ export default function AdminPage() {
               setAlbums(data.albums);
             }
           }
-          // Only update nowPlaying if the payload includes the field
-          if ('nowPlaying' in data) {
+          // Only update nowPlaying if the payload explicitly includes the field and it's not undefined
+          if ('nowPlaying' in data && data.nowPlaying !== undefined) {
             setNowPlaying(data.nowPlaying);
           }
           // Update isPlaying if provided
