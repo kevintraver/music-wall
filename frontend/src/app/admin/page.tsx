@@ -172,13 +172,13 @@ export default function AdminPage() {
                             onClick={() => fetch(`${apiBase}/api/playback/previous`, { method: 'POST' })}
                             className="bg-gray-700 text-white p-3 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
                           >
-                            <span className="material-icons">skip_previous</span>
+                            <span className="material-icons text-2xl">skip_previous</span>
                           </button>
                           <button
                             onClick={() => fetch(`${apiBase}/api/playback/play`, { method: 'POST' })}
                             className="bg-green-500 text-white p-4 rounded-full hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500"
                           >
-                            <span className="material-icons text-4xl">play_arrow</span>
+                            <span className="material-icons text-3xl">play_arrow</span>
                           </button>
                           <button
                             onClick={() => fetch(`${apiBase}/api/playback/pause`, { method: 'POST' })}
@@ -190,7 +190,7 @@ export default function AdminPage() {
                             onClick={() => fetch(`${apiBase}/api/playback/next`, { method: 'POST' })}
                             className="bg-blue-500 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500 flex items-center"
                           >
-                            <span className="material-icons mr-1">skip_next</span>
+                            <span className="material-icons mr-1 text-lg">skip_next</span>
                             Next
                           </button>
                         </div>
