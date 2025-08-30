@@ -544,7 +544,6 @@ export default function AdminPage() {
                 <div className="p-6 overflow-y-auto flex-1">
                   {(isSearching || searchQuery.trim()) && (
                     <>
-                      <h3 className="text-lg font-medium text-gray-700 mb-3">Search Results</h3>
                       <ul className="space-y-3">
                         {isSearching && (
                           Array.from({ length: 6 }).map((_, i) => (
