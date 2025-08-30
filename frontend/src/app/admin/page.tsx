@@ -36,6 +36,8 @@ export default function AdminPage() {
   const [albumsLoading, setAlbumsLoading] = useState(true);
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
   const [queueLoaded, setQueueLoaded] = useState(false);
+  const [playbackActionLoading, setPlaybackActionLoading] = useState<string | null>(null);
+  const [wsConnected, setWsConnected] = useState(false);
 
   useEffect(() => {
     const base = `http://${window.location.hostname}:3001`;
@@ -67,9 +69,18 @@ export default function AdminPage() {
   // Fetch initial queue when logged in
   useEffect(() => {
     if (isLoggedIn && apiBase) {
+      const normalizeQueue = (payload: any) => {
+        let q = Array.isArray(payload) ? payload
+          : Array.isArray(payload?.queue) ? payload.queue
+          : Array.isArray(payload?.items) ? payload.items
+          : Array.isArray(payload?.tracks) ? payload.tracks
+          : [];
+        if (q.length && q[0]?.track) q = q.map((x: any) => x.track);
+        return q;
+      };
       fetch(`${apiBase}/api/queue`)
         .then(res => res.json())
-        .then((data) => { setUpNext(data); setQueueLoaded(true); })
+        .then((payload) => { setUpNext(normalizeQueue(payload)); setQueueLoaded(true); })
         .catch(() => { setUpNext([]); setQueueLoaded(true); });
     }
   }, [isLoggedIn, apiBase]);
@@ -91,12 +102,24 @@ export default function AdminPage() {
         if (typeof data.isPlaying === 'boolean') {
           setIsPlaying(data.isPlaying);
         }
-        setUpNext(data.queue);
+        const q = (data.queue ?? data.upNext ?? data.items ?? data.tracks ?? []) as any[];
+        const normalized = (q.length && q[0]?.track) ? q.map((x: any) => x.track) : q;
+        setUpNext(normalized);
         setPlaybackLoaded(true);
         setQueueLoaded(true);
       };
-      ws.onopen = () => console.log('Admin WS connected');
-      ws.onclose = () => console.log('Admin WS disconnected');
+      ws.onopen = () => {
+        console.log('Admin WS connected');
+        setWsConnected(true);
+      };
+      ws.onclose = () => {
+        console.log('Admin WS disconnected');
+        setWsConnected(false);
+      };
+      ws.onerror = () => {
+        console.log('Admin WS error');
+        setWsConnected(false);
+      };
       return () => ws.close();
     }
   }, [isLoggedIn]);
@@ -149,19 +172,67 @@ export default function AdminPage() {
 
   const addAlbum = async (album: Album) => {
     setPendingAddId(album.id);
-    await fetch(`${apiBase}/api/admin/albums`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(album)
-    });
-    setAlbums([...albums, album]);
-    setSearchResults(searchResults.filter(a => a.id !== album.id));
-    setPendingAddId(null);
+    try {
+      await fetch(`${apiBase}/api/admin/albums`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(album)
+      });
+      setAlbums([...albums, album]);
+      setSearchResults(searchResults.filter(a => a.id !== album.id));
+      // Clear search query and results after successful addition
+      setSearchQuery('');
+      setSearchResults([]);
+      setPendingAddId(null);
+    } catch (error) {
+      console.error('Error adding album:', error);
+      setPendingAddId(null);
+    }
   };
 
   const removeAlbum = async (id: string) => {
     await fetch(`${apiBase}/api/admin/albums/${id}`, { method: 'DELETE' });
     setAlbums(albums.filter(a => a.id !== id));
+  };
+
+  const handlePlaybackAction = async (action: string, endpoint: string) => {
+    setPlaybackActionLoading(action);
+    try {
+      const res = await fetch(`${apiBase}${endpoint}`, { method: 'POST' });
+      if (!res.ok) {
+        throw new Error(`Playback ${action} failed`);
+      }
+    } catch (error) {
+      console.error(`Error ${action}:`, error);
+      // Could add user notification here
+    } finally {
+      setPlaybackActionLoading(null);
+    }
+  };
+
+  const refreshPlaybackData = async () => {
+    if (!apiBase) return;
+    try {
+      const [nowPlayingRes, queueRes] = await Promise.all([
+        fetch(`${apiBase}/api/now-playing`),
+        fetch(`${apiBase}/api/queue`)
+      ]);
+
+      if (nowPlayingRes.ok) {
+        const nowPlayingData = await nowPlayingRes.json();
+        setNowPlaying(nowPlayingData);
+      }
+
+      if (queueRes.ok) {
+        const queueData = await queueRes.json();
+        setUpNext(queueData);
+      }
+
+      setPlaybackLoaded(true);
+      setQueueLoaded(true);
+    } catch (error) {
+      console.error('Error refreshing playback data:', error);
+    }
   };
 
 
@@ -198,7 +269,24 @@ export default function AdminPage() {
       <div className="min-h-screen flex flex-col bg-gray-100">
         <header className="bg-white shadow-sm">
           <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-            <h1 className="text-3xl font-bold leading-tight text-gray-900">Admin Dashboard</h1>
+            <div className="flex items-center justify-between">
+              <h1 className="text-3xl font-bold leading-tight text-gray-900">Admin Dashboard</h1>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                  <span className="text-sm text-gray-600">
+                    {wsConnected ? 'Connected' : 'Disconnected'}
+                  </span>
+                </div>
+                <button
+                  onClick={refreshPlaybackData}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
+                  title="Refresh playback data"
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
           </div>
         </header>
         <main className="flex-grow">
@@ -214,7 +302,8 @@ export default function AdminPage() {
                         <li className="text-gray-500">Queue is empty</li>
                       )}
                       {upNext.map((t) => (
-                        <li key={t.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                        <li key={(t as any).id ?? (t as any).uri ?? `${t.name}-${t.artist}`}
+                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
                           <div className="flex items-center space-x-4">
                             <span className="material-icons text-gray-400">drag_indicator</span>
                             <div>
@@ -259,14 +348,19 @@ export default function AdminPage() {
                         <p className="text-3xl font-bold">{nowPlaying.name}</p>
                         <p className="text-xl text-gray-300 mt-1">{nowPlaying.artist}</p>
                         <div className="flex items-center justify-center space-x-6 mt-6">
-                          <button
-                            type="button"
-                            aria-label="Previous"
-                            onClick={() => fetch(`${apiBase}/api/playback/previous`, { method: 'POST' })}
-                            className="bg-gray-700 text-white w-14 h-14 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white flex items-center justify-center"
-                          >
-                            <span className="material-icons text-3xl">skip_previous</span>
-                          </button>
+                           <button
+                             type="button"
+                             aria-label="Previous"
+                             onClick={() => handlePlaybackAction('previous', '/api/playback/previous')}
+                             disabled={playbackActionLoading === 'previous'}
+                             className="bg-gray-700 text-white w-14 h-14 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                           >
+                             {playbackActionLoading === 'previous' ? (
+                               <span className="material-icons animate-spin text-2xl">autorenew</span>
+                             ) : (
+                               <span className="material-icons text-3xl">skip_previous</span>
+                             )}
+                           </button>
                           <button
                             type="button"
                             aria-label={isPlaying ? 'Pause' : 'Play'}
@@ -288,14 +382,19 @@ export default function AdminPage() {
                           >
                             <span className="material-icons text-4xl">{isPlaying ? 'pause' : 'play_arrow'}</span>
                           </button>
-                          <button
-                            type="button"
-                            aria-label="Next"
-                            onClick={() => fetch(`${apiBase}/api/playback/next`, { method: 'POST' })}
-                            className="bg-gray-700 text-white w-14 h-14 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white flex items-center justify-center"
-                          >
-                            <span className="material-icons text-3xl">skip_next</span>
-                          </button>
+                           <button
+                             type="button"
+                             aria-label="Next"
+                             onClick={() => handlePlaybackAction('next', '/api/playback/next')}
+                             disabled={playbackActionLoading === 'next'}
+                             className="bg-gray-700 text-white w-14 h-14 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                           >
+                             {playbackActionLoading === 'next' ? (
+                               <span className="material-icons animate-spin text-2xl">autorenew</span>
+                             ) : (
+                               <span className="material-icons text-3xl">skip_next</span>
+                             )}
+                           </button>
                         </div>
                       </div>
                     </>
@@ -355,13 +454,13 @@ export default function AdminPage() {
               </div>
 
               {/* Search right: 1 column with internal scroll */}
-              <div className="lg:col-span-1 bg-white p-0 rounded-xl shadow-md flex flex-col max-h-[80vh] min-h-[60vh]">
+              <div className="lg:col-span-1 bg-white p-0 rounded-xl shadow-md flex flex-col h-[72vh] overflow-hidden">
                 <div className="p-6 border-b sticky top-0 bg-white z-10 rounded-t-xl">
                   <h2 className="text-xl font-semibold text-gray-800 mb-4">Add Albums</h2>
                   <div className="relative">
-                    <span className="material-icons absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">search</span>
+                    <span className="material-icons pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
                     <input
-                      type="search"
+                      type="text"
                       inputMode="search"
                       aria-label="Search albums"
                       autoComplete="off"
@@ -383,14 +482,14 @@ export default function AdminPage() {
                       <button
                         aria-label="Clear search"
                         onClick={() => { setSearchQuery(''); setSearchResults([]); }}
-                        className="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-gray-600"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                         type="button"
                       >
                         <span className="material-icons text-lg">close</span>
                       </button>
                     )}
                     {isSearching && (
-                      <span className="material-icons animate-spin absolute inset-y-0 right-0 px-3 text-gray-400" aria-live="polite" aria-busy="true">autorenew</span>
+                      <span className="material-icons animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-gray-400" aria-live="polite" aria-busy="true">autorenew</span>
                     )}
                   </div>
                 </div>
