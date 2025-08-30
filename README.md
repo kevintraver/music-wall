@@ -16,6 +16,7 @@ A web app for displaying a grid of albums with QR codes. Guests scan to queue tr
 - npm
 - Spotify Premium account
 - Just (command runner): `brew install just` (macOS) or see https://github.com/casey/just
+- PM2 (process manager, optional but recommended): `npm install -g pm2`
 
 ## Setup
 
@@ -84,14 +85,16 @@ just start-all
 
 ## Development
 
-- `just install` - Install all dependencies
-- `just start-backend` - Run backend only
-- `just start-frontend` - Run frontend only
+- `just install` - Install all dependencies (including pm2)
+- `just start-backend` - Run backend only (uses pm2 if available)
+- `just start-frontend` - Run frontend only (uses pm2 if available)
 - `just start-all` - Run backend and frontend
-- `just stop` - Stop all processes
-- `just restart` - Restart all processes
+- `just stop` - Stop all processes (uses pm2 if available)
+- `just restart` - Restart all processes (uses pm2 if available)
 - `just spotifyd` - Run Spotifyd (requires config)
 - `just clean` - Remove node_modules
+
+PM2 provides better process management with logs, monitoring, and graceful restarts. If pm2 is not installed, commands fall back to basic process handling.
 
 ## Prototype Notes
 
