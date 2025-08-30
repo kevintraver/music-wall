@@ -192,14 +192,14 @@ export default function AdminPage() {
               {/* Now Playing panel */}
               <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md flex flex-col">
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">Now Playing</h2>
-                <div className="flex-grow flex flex-col sm:flex-row items-center justify-center text-center sm:text-left bg-gray-800 text-white p-6 rounded-lg mb-4 gap-6">
+                <div className="flex-grow flex flex-col sm:flex-row items-center justify-center text-center bg-gray-800 text-white p-6 rounded-lg mb-4 gap-6">
                   {nowPlaying ? (
                     <>
                       <img alt={`${nowPlaying.album} album cover`} className="w-48 h-48 rounded-lg shadow-lg" src={nowPlaying.image} />
-                      <div className="flex-1">
+                      <div className="flex-1 flex flex-col items-center text-center">
                         <p className="text-3xl font-bold">{nowPlaying.name}</p>
                         <p className="text-xl text-gray-300 mt-1">{nowPlaying.artist}</p>
-                        <div className="flex items-center justify-center sm:justify-start space-x-4 mt-6">
+                        <div className="flex items-center justify-center space-x-4 mt-6">
                           <button
                             onClick={() => fetch(`${apiBase}/api/playback/previous`, { method: 'POST' })}
                             className="bg-gray-700 text-white p-3 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
