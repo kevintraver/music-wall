@@ -10,9 +10,18 @@ interface Album {
   image: string;
 }
 
+interface Track {
+  id: string;
+  name: string;
+  artist: string;
+  album: string;
+}
+
 export default function Home() {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [qrs, setQrs] = useState<{ [key: string]: string }>({});
+  const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
+  const [upNext, setUpNext] = useState<Track[]>([]);
 
   useEffect(() => {
     fetch('http://localhost:3001/api/albums')
@@ -30,10 +39,24 @@ export default function Home() {
     });
   }, [albums]);
 
+  useEffect(() => {
+    const poll = () => {
+      fetch('http://localhost:3001/api/now-playing')
+        .then(res => res.json())
+        .then(setNowPlaying);
+      fetch('http://localhost:3001/api/queue')
+        .then(res => res.json())
+        .then(setUpNext);
+    };
+    poll();
+    const interval = setInterval(poll, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-black text-white p-4">
+    <div className="min-h-screen bg-black text-white p-4 flex flex-col">
       <h1 className="text-4xl font-bold text-center mb-8">Song Wall</h1>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+      <div className="flex-1 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
         {albums.map(album => (
           <div key={album.id} className="flex flex-col items-center">
             <Image
@@ -57,7 +80,24 @@ export default function Home() {
           </div>
         ))}
       </div>
-      {/* Now Playing and Up Next will be added later */}
+      <div className="mt-8">
+        {nowPlaying && (
+          <div className="bg-gray-800 p-4 rounded mb-4">
+            <h2 className="text-xl font-semibold">Now Playing</h2>
+            <p>{nowPlaying.name} - {nowPlaying.artist}</p>
+          </div>
+        )}
+        {upNext.length > 0 && (
+          <div className="bg-gray-800 p-4 rounded">
+            <h2 className="text-xl font-semibold">Up Next</h2>
+            <ul>
+              {upNext.slice(0, 3).map(track => (
+                <li key={track.id}>{track.name} - {track.artist}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
