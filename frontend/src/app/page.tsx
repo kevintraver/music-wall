@@ -278,8 +278,8 @@ export default function Home() {
                 <div className="flex items-center gap-4 justify-center">
                   <Skeleton className="w-[120px] h-[120px] rounded-lg ml-2" />
                   <div className="flex-1 text-center">
-                    <Skeleton className="w-28 h-3 mb-1" />
-                    <Skeleton className="w-20 h-3" />
+                    <Skeleton className="w-32 h-4 mb-1" />
+                    <Skeleton className="w-24 h-3" />
                   </div>
                 </div>
               )}
@@ -309,8 +309,8 @@ export default function Home() {
               ) : (
                 <div className="flex items-center justify-center flex-1">
                   <div className="text-center">
-                    <Skeleton className="w-32 h-3 mb-1 mx-auto" />
-                    <Skeleton className="w-24 h-3 mx-auto" />
+                    <Skeleton className="w-28 h-3 mb-1 mx-auto" />
+                    <Skeleton className="w-20 h-3 mx-auto" />
                   </div>
                 </div>
               )}
