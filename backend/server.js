@@ -19,7 +19,7 @@ let albums = JSON.parse(fs.readFileSync(path.join(__dirname, '../albums.json'), 
 const spotifyApi = new SpotifyWebApi({
   clientId: process.env.SPOTIFY_CLIENT_ID,
   clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
-  redirectUri: 'http://localhost:3001/callback'
+  redirectUri: 'http://127.0.0.1:3001/callback'
 });
 
 // Authenticate with Spotify
