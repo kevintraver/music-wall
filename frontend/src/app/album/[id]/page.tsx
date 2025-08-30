@@ -24,6 +24,8 @@ export default function AlbumPage() {
   const [album, setAlbum] = useState<Album | null>(null);
   const [apiBase, setApiBase] = useState('');
   const [message, setMessage] = useState('');
+  const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
+  const [queuedTrack, setQueuedTrack] = useState<string>('');
 
   useEffect(() => {
     const base = `http://${window.location.hostname}:3001`;
@@ -33,12 +35,27 @@ export default function AlbumPage() {
       .then(setAlbum);
   }, [albumId]);
 
+  useEffect(() => {
+    if (!apiBase) return;
+    const poll = () => {
+      fetch(`${apiBase}/api/now-playing`)
+        .then(res => res.json())
+        .then(setNowPlaying);
+    };
+    poll();
+    const interval = setInterval(poll, 5000);
+    return () => clearInterval(interval);
+  }, [apiBase]);
+
   const queueTrack = (trackId: string) => {
+    const track = album?.tracks.find(t => t.id === trackId);
+    if (!track) return;
     fetch(`${apiBase}/api/queue`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ trackId })
     }).then(() => {
+      setQueuedTrack(track.name);
       setMessage('Track queued successfully!');
       setTimeout(() => setMessage(''), 3000);
     }).catch(() => {
@@ -62,6 +79,18 @@ export default function AlbumPage() {
         <h1 className="text-2xl font-bold text-center mt-4">{album.name}</h1>
         <p className="text-center text-gray-400">{album.artist}</p>
         {message && <p className="text-center text-green-400 mt-4">{message}</p>}
+        {queuedTrack && (
+          <div className="text-center mt-4">
+            <h3 className="text-lg font-semibold">Queued</h3>
+            <p>{queuedTrack}</p>
+          </div>
+        )}
+        {nowPlaying && (
+          <div className="text-center mt-4">
+            <h3 className="text-lg font-semibold">Now Playing</h3>
+            <p>{nowPlaying.name} - {nowPlaying.artist}</p>
+          </div>
+        )}
         <div className="mt-8">
           <h2 className="text-xl font-semibold mb-4">Tracks</h2>
           <ul className="space-y-2">
