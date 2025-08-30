@@ -85,15 +85,42 @@ export default function AdminPage() {
         .then(res => res.json())
         .then((payload) => setUpNext(normalizeQueue(payload)))
         .catch(() => {/* ignore */});
-    }, 5000);
+    }, 30000); // Reduced from 5s to 30s
     return () => window.clearInterval(id);
   }, [isLoggedIn, apiBase]);
 
   useEffect(() => {
-    if (isLoggedIn) {
-      const ws = new WebSocket(`ws://${window.location.hostname}:3002`);
+    if (!isLoggedIn) return;
+
+    let ws: WebSocket | null = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+    const baseReconnectDelay = 1000; // 1 second
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+    let heartbeatInterval: NodeJS.Timeout | null = null;
+
+    const connect = () => {
+      if (ws && ws.readyState === WebSocket.OPEN) return;
+
+      ws = new WebSocket(`ws://${window.location.hostname}:3002`);
+
+      ws.onopen = () => {
+        console.log('Admin WebSocket connected');
+        setWsConnected(true);
+        reconnectAttempts = 0;
+
+        // Start heartbeat
+        heartbeatInterval = setInterval(() => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, 30000); // Send ping every 30 seconds
+      };
+
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        if (data.type === 'pong') return; // Ignore pong responses
+
         console.log('Admin WS update:', data);
         if (data.nowPlaying) {
           console.log('Now playing:', data.nowPlaying.name, 'by', data.nowPlaying.artist);
@@ -111,20 +138,37 @@ export default function AdminPage() {
         setPlaybackLoaded(true);
         setQueueLoaded(true);
       };
-      ws.onopen = () => {
-        console.log('Admin WS connected');
-        setWsConnected(true);
-      };
+
       ws.onclose = () => {
-        console.log('Admin WS disconnected');
+        console.log('Admin WebSocket disconnected, attempting reconnection...');
+        setWsConnected(false);
+        if (heartbeatInterval) {
+          clearInterval(heartbeatInterval);
+          heartbeatInterval = null;
+        }
+
+        if (reconnectAttempts < maxReconnectAttempts) {
+          const delay = baseReconnectDelay * Math.pow(2, reconnectAttempts);
+          reconnectTimeout = setTimeout(() => {
+            reconnectAttempts++;
+            connect();
+          }, delay);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('Admin WebSocket error:', error);
         setWsConnected(false);
       };
-      ws.onerror = () => {
-        console.log('Admin WS error');
-        setWsConnected(false);
-      };
-      return () => ws.close();
-    }
+    };
+
+    connect();
+
+    return () => {
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      if (ws) ws.close();
+    };
   }, [isLoggedIn]);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -153,8 +197,8 @@ export default function AdminPage() {
     try {
       const res = await fetch(`${apiBase}/api/search?q=${encodeURIComponent(q)}`, { signal: controller.signal });
       if (!res.ok) throw new Error('Search failed');
-      const results = await res.json();
-      setSearchResults(results);
+      const results: Album[] = await res.json();
+      setSearchResults(results.filter(album => !albums.some(a => a.id === album.id)));
     } catch (e: any) {
       if (e?.name !== 'AbortError') {
         setSearchResults([]);
@@ -162,7 +206,7 @@ export default function AdminPage() {
     } finally {
       setIsSearching(false);
     }
-  }, [apiBase]);
+  }, [apiBase, albums]);
 
   useEffect(() => {
     if (!apiBase) return;
