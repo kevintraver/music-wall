@@ -206,7 +206,7 @@ export default function AdminPage() {
             <ul className="max-h-32 overflow-y-auto">
               {upNext.map(track => (
                 <li key={track.id} className="flex items-center mb-2">
-                  <img src={track.album} alt={track.name} width={30} height={30} className="rounded mr-2" />
+                  <img src={track.image} alt={track.name} width={30} height={30} className="rounded mr-2" />
                   <span>{track.name} - {track.artist}</span>
                 </li>
               ))}
