@@ -44,6 +44,15 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (isLoggedIn && apiBase) {
+      // Try to seed playback status if the WS payload doesn't include it
+      // Non-fatal if the endpoint doesn't exist
+      fetch(`${apiBase}/api/playback/status`)
+        .then(res => res.ok ? res.json() : Promise.reject())
+        .then((data) => {
+          if (typeof data?.isPlaying === 'boolean') setIsPlaying(data.isPlaying);
+        })
+        .catch(() => {/* ignore */});
+
       fetch(`${apiBase}/api/albums`)
         .then(res => res.json())
         .then(setAlbums);
@@ -73,7 +82,10 @@ export default function AdminPage() {
           console.log('Queue updated:', data.queue.map(t => t.name).join(', '));
         }
         setNowPlaying(data.nowPlaying);
-        setIsPlaying(data.isPlaying);
+        // Fallback: if server doesn't include isPlaying, keep previous value
+        if (typeof data.isPlaying === 'boolean') {
+          setIsPlaying(data.isPlaying);
+        }
         setUpNext(data.queue);
       };
       ws.onopen = () => console.log('Admin WS connected');
@@ -223,27 +235,43 @@ export default function AdminPage() {
                       <div className="flex-1 flex flex-col items-center text-center">
                         <p className="text-3xl font-bold">{nowPlaying.name}</p>
                         <p className="text-xl text-gray-300 mt-1">{nowPlaying.artist}</p>
-                        <div className="flex items-center justify-center space-x-4 mt-6">
+                        <div className="flex items-center justify-center space-x-6 mt-6">
                           <button
+                            type="button"
+                            aria-label="Previous"
                             onClick={() => fetch(`${apiBase}/api/playback/previous`, { method: 'POST' })}
-                            className="bg-gray-700 text-white p-3 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
+                            className="bg-gray-700 text-white w-14 h-14 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white flex items-center justify-center"
                           >
-                            <span className="material-icons text-2xl">skip_previous</span>
+                            <span className="material-icons text-3xl">skip_previous</span>
                           </button>
                           <button
-                            onClick={() => {
-                              fetch(`${apiBase}/api/playback/${isPlaying ? 'pause' : 'play'}`, { method: 'POST' });
+                            type="button"
+                            aria-label={isPlaying ? 'Pause' : 'Play'}
+                            onClick={async () => {
+                              const wasPlaying = isPlaying;
+                              const action = wasPlaying ? 'pause' : 'play';
+                              // Optimistically toggle UI state
+                              setIsPlaying(!wasPlaying);
+                              try {
+                                const res = await fetch(`${apiBase}/api/playback/${action}`, { method: 'POST' });
+                                if (!res.ok) throw new Error(`Playback ${action} failed`);
+                              } catch (e) {
+                                // Revert UI state on failure
+                                setIsPlaying(wasPlaying);
+                                console.error(e);
+                              }
                             }}
-                            className="bg-green-500 text-white p-4 rounded-full hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500"
+                            className="bg-green-500 text-white w-16 h-16 rounded-full hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500 flex items-center justify-center"
                           >
                             <span className="material-icons text-4xl">{isPlaying ? 'pause' : 'play_arrow'}</span>
                           </button>
                           <button
+                            type="button"
+                            aria-label="Next"
                             onClick={() => fetch(`${apiBase}/api/playback/next`, { method: 'POST' })}
-                            className="bg-blue-500 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500 flex items-center"
+                            className="bg-gray-700 text-white w-14 h-14 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white flex items-center justify-center"
                           >
-                            <span className="material-icons mr-1 text-lg">skip_next</span>
-                            Next
+                            <span className="material-icons text-3xl">skip_next</span>
                           </button>
                         </div>
                       </div>
@@ -260,7 +288,7 @@ export default function AdminPage() {
               {/* Wall left: 2 columns */}
               <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md">
                 <h2 className="text-2xl font-semibold text-gray-800 mb-6">Current Wall</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-5 gap-6">
                   {albums.map(album => (
                     <div key={album.id} className="group relative">
                       <img alt={`${album.name} album cover`} className="w-full h-auto rounded-lg object-cover aspect-square shadow-md" src={album.image} />
@@ -270,8 +298,8 @@ export default function AdminPage() {
                       >
                         <span className="material-icons text-base">delete</span>
                       </button>
-                      <div className="mt-2 text-center">
-                        <p className="font-semibold text-gray-800 truncate">{album.name}</p>
+                      <div className="mt-3 text-center">
+                        <p className="font-semibold text-gray-800 text-base leading-tight">{album.name}</p>
                       </div>
                     </div>
                   ))}
@@ -279,9 +307,9 @@ export default function AdminPage() {
               </div>
 
               {/* Search right: 1 column with internal scroll */}
-              <div className="lg:col-span-1 bg-white p-0 rounded-xl shadow-md flex flex-col max-h-[75vh]">
+              <div className="lg:col-span-1 bg-white p-0 rounded-xl shadow-md flex flex-col max-h-[80vh] min-h-[60vh]">
                 <div className="p-6 border-b sticky top-0 bg-white z-10 rounded-t-xl">
-                  <h2 className="text-xl font-semibold text-gray-800 mb-4">Search & Add Albums</h2>
+                  <h2 className="text-xl font-semibold text-gray-800 mb-4">Add Albums</h2>
                   <div className="relative">
                     <span className="material-icons absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">search</span>
                     <input
@@ -318,7 +346,7 @@ export default function AdminPage() {
                     )}
                   </div>
                 </div>
-                <div className="p-6 overflow-y-auto">
+                <div className="p-6 overflow-y-auto flex-1">
                   <h3 className="text-lg font-medium text-gray-700 mb-3">Search Results</h3>
                   <ul className="space-y-3">
                     {searchResults.length === 0 && !isSearching && searchQuery.trim() && (
