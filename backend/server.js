@@ -169,14 +169,14 @@ app.post('/api/queue', async (req, res) => {
   try {
     // Get available devices
     const devices = await spotifyApi.getMyDevices();
-    const songwallDevice = devices.body.devices.find(d => d.name === 'SongWall Player');
+    const activeDevice = devices.body.devices.find(d => d.is_active);
 
-    if (!songwallDevice) {
-      return res.status(400).json({ error: 'SongWall Player device not found. Make sure Spotifyd is running.' });
+    if (!activeDevice) {
+      return res.status(400).json({ error: 'No active Spotify device found. Make sure Spotify app is running and logged in.' });
     }
 
     // Add track to queue
-    await spotifyApi.addToQueue(`spotify:track:${trackId}`, { device_id: songwallDevice.id });
+    await spotifyApi.addToQueue(`spotify:track:${trackId}`, { device_id: activeDevice.id });
     res.json({ success: true });
   } catch (error) {
     console.error('Error adding to queue:', error);
@@ -248,13 +248,13 @@ app.post('/api/playback/play', async (req, res) => {
   }
   try {
     const devices = await spotifyApi.getMyDevices();
-    const songwallDevice = devices.body.devices.find(d => d.name === 'SongWall Player');
+    const activeDevice = devices.body.devices.find(d => d.is_active);
 
-    if (songwallDevice) {
-      await spotifyApi.play({ device_id: songwallDevice.id });
+    if (activeDevice) {
+      await spotifyApi.play({ device_id: activeDevice.id });
       res.json({ success: true });
     } else {
-      res.status(400).json({ error: 'SongWall Player device not found' });
+      res.status(400).json({ error: 'No active Spotify device found' });
     }
   } catch (error) {
     console.error('Error playing:', error);
