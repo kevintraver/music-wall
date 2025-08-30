@@ -35,30 +35,12 @@ just install
 3. Set redirect URI: `http://127.0.0.1:3001/callback`
 4. Copy client ID and secret to `backend/.env`
 
-### 3. Spotifyd Setup (Playback Backend)
+### 3. Spotify App Setup (Playback Backend)
 
-1. Install Spotifyd:
-   - macOS: `brew install spotifyd`
-   - Linux: `sudo apt-get install spotifyd`
-   - Windows: Download from GitHub releases
-
-2. Create config file:
-   - macOS: `~/Library/Application Support/Spotifyd/spotifyd.conf`
-   - Linux: `~/.config/spotifyd/spotifyd.conf`
-   - Windows: `%APPDATA%\Spotifyd\spotifyd.conf`
-
-   Example config:
-   ```
-   [global]
-   username = "your_spotify_email"
-   password = "your_spotify_password"
-   device_name = "SongWall Player"
-   bitrate = 320
-   backend = "portaudio"  # macOS
-   ```
-
-3. Test Spotifyd: `spotifyd --no-daemon --verbose`
-   - Should appear as "SongWall Player" in Spotify Connect
+1. Install Spotify app on your laptop (if not already).
+2. Log in with your Spotify Premium account.
+3. Keep Spotify app running during the event.
+4. The web app will control playback through your active Spotify device.
 
 ### 4. Run the App
 
@@ -91,7 +73,7 @@ just start-all
 - `just start-all` - Run backend and frontend
 - `just stop` - Stop all processes (uses pm2 if available)
 - `just restart` - Restart all processes (uses pm2 if available)
-- `just spotifyd` - Run Spotifyd (requires config)
+
 - `just clean` - Remove node_modules
 
 PM2 provides better process management with logs, monitoring, and graceful restarts. If pm2 is not installed, commands fall back to basic process handling.

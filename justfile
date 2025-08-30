@@ -26,10 +26,6 @@ start-backend-fallback:
 start-frontend-fallback:
     cd frontend && npm run dev &
 
-# Run Spotifyd (requires config file)
-spotifyd:
-    spotifyd --no-daemon --verbose
-
 # Clean node_modules
 clean:
     rm -rf backend/node_modules
@@ -47,7 +43,6 @@ restart:
 stop-fallback:
     -pkill -f "node server.js"
     -pkill -f "next dev"
-    -pkill spotifyd
 
 # Fallback start without pm2
 start-all-fallback:
