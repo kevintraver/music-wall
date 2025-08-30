@@ -22,36 +22,41 @@ export default function Home() {
   const [qrs, setQrs] = useState<{ [key: string]: string }>({});
   const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
   const [upNext, setUpNext] = useState<Track[]>([]);
+  const [apiBase, setApiBase] = useState('');
 
   useEffect(() => {
-    fetch('http://localhost:3001/api/albums')
+    const base = `http://${window.location.hostname}:3001`;
+    setApiBase(base);
+    fetch(`${base}/api/albums`)
       .then(res => res.json())
       .then(setAlbums);
   }, []);
 
   useEffect(() => {
+    if (!apiBase) return;
     albums.forEach(album => {
-      fetch(`http://localhost:3001/api/qr/${album.id}`)
+      fetch(`${apiBase}/api/qr/${album.id}`)
         .then(res => res.json())
         .then(data => {
           setQrs(prev => ({ ...prev, [album.id]: data.qr }));
         });
     });
-  }, [albums]);
+  }, [albums, apiBase]);
 
   useEffect(() => {
+    if (!apiBase) return;
     const poll = () => {
-      fetch('http://localhost:3001/api/now-playing')
+      fetch(`${apiBase}/api/now-playing`)
         .then(res => res.json())
         .then(setNowPlaying);
-      fetch('http://localhost:3001/api/queue')
+      fetch(`${apiBase}/api/queue`)
         .then(res => res.json())
         .then(setUpNext);
     };
     poll();
     const interval = setInterval(poll, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [apiBase]);
 
   return (
     <div className="min-h-screen bg-black text-white p-4 flex flex-col">

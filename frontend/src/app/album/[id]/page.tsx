@@ -22,15 +22,18 @@ export default function AlbumPage() {
   const params = useParams();
   const albumId = params.id as string;
   const [album, setAlbum] = useState<Album | null>(null);
+  const [apiBase, setApiBase] = useState('');
 
   useEffect(() => {
-    fetch(`http://localhost:3001/api/album/${albumId}`)
+    const base = `http://${window.location.hostname}:3001`;
+    setApiBase(base);
+    fetch(`${base}/api/album/${albumId}`)
       .then(res => res.json())
       .then(setAlbum);
   }, [albumId]);
 
   const queueTrack = (trackId: string) => {
-    fetch('http://localhost:3001/api/queue', {
+    fetch(`${apiBase}/api/queue`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ trackId })

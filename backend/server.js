@@ -133,7 +133,7 @@ app.get('/callback', async (req, res) => {
     accessToken = data.access_token;
     refreshToken = data.refresh_token;
     spotifyApi.setAccessToken(accessToken);
-    res.redirect('http://localhost:3000/admin'); // Redirect to admin page
+    res.redirect(`http://${localIP}:3000/admin`); // Redirect to admin page
   } catch (error) {
     console.error('Error exchanging code:', error);
     res.status(500).send('Auth failed');
