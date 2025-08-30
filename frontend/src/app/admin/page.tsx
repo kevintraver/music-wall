@@ -29,6 +29,10 @@ export default function AdminPage() {
   useEffect(() => {
     const base = `http://${window.location.hostname}:3001`;
     setApiBase(base);
+    // Check auth status on load
+    fetch(`${base}/api/admin/status`)
+      .then(res => res.json())
+      .then(data => setIsLoggedIn(data.authenticated));
   }, []);
 
   useEffect(() => {
@@ -53,7 +57,7 @@ export default function AdminPage() {
       body: JSON.stringify({ username, password })
     });
     const data = await res.json();
-    if (res.ok && data.redirect) {
+    if (data.redirect) {
       window.location.href = `${apiBase}${data.redirect}`;
     } else {
       alert('Invalid credentials');

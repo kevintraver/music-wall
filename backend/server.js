@@ -299,6 +299,10 @@ app.post('/api/admin/login', (req, res) => {
   }
 });
 
+app.get('/api/admin/status', (req, res) => {
+  res.json({ authenticated: !!accessToken });
+});
+
 app.listen(PORT, () => {
   console.log(`Backend running on port ${PORT}`);
 });
