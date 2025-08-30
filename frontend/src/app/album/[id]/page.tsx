@@ -23,6 +23,7 @@ export default function AlbumPage() {
   const albumId = params.id as string;
   const [album, setAlbum] = useState<Album | null>(null);
   const [apiBase, setApiBase] = useState('');
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     const base = `http://${window.location.hostname}:3001`;
@@ -37,7 +38,13 @@ export default function AlbumPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ trackId })
-    }).then(() => alert('Track queued!'));
+    }).then(() => {
+      setMessage('Track queued successfully!');
+      setTimeout(() => setMessage(''), 3000);
+    }).catch(() => {
+      setMessage('Failed to queue track.');
+      setTimeout(() => setMessage(''), 3000);
+    });
   };
 
   if (!album) return <div>Loading...</div>;
@@ -54,6 +61,7 @@ export default function AlbumPage() {
         />
         <h1 className="text-2xl font-bold text-center mt-4">{album.name}</h1>
         <p className="text-center text-gray-400">{album.artist}</p>
+        {message && <p className="text-center text-green-400 mt-4">{message}</p>}
         <div className="mt-8">
           <h2 className="text-xl font-semibold mb-4">Tracks</h2>
           <ul className="space-y-2">
