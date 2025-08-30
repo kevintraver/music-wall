@@ -28,6 +28,7 @@ function getLocalIP() {
 }
 
 const localIP = getLocalIP();
+console.log('Local IP for QR codes:', localIP);
 
 // OAuth variables
 let codeVerifier = '';
