@@ -10,6 +10,7 @@ interface Album {
   name: string;
   artist: string;
   image: string;
+  position: number;
 }
 
 interface Track {
@@ -88,6 +89,9 @@ export default function Home() {
             return;
           }
 
+          if (data.albums && Array.isArray(data.albums)) {
+            setAlbums(data.albums);
+          }
           setNowPlaying(data.nowPlaying);
           const normalized = normalizeQueue(data);
           if (normalized.length) setUpNext(normalized);
@@ -172,7 +176,7 @@ export default function Home() {
                 <Skeleton className="w-[70px] h-[70px] mt-2" />
               </div>
             ))
-          : albums.map(album => (
+          : [...albums].sort((a, b) => a.position - b.position).map(album => (
               <div key={album.id} className="flex flex-col items-center">
                  <img
                    src={album.image}

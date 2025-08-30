@@ -9,6 +9,7 @@ interface Album {
   name: string;
   artist: string;
   image: string;
+  position: number;
 }
 
 interface Track {
@@ -37,6 +38,8 @@ export default function AdminPage() {
   // Keep a stable reference to albums to avoid re-triggering searches on add
   const albumsRef = useRef<Album[]>([]);
   const [albumsLoading, setAlbumsLoading] = useState(true);
+  const [draggedAlbum, setDraggedAlbum] = useState<Album | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
   const [queueLoaded, setQueueLoaded] = useState(false);
   const [playbackActionLoading, setPlaybackActionLoading] = useState<string | null>(null);
@@ -136,6 +139,10 @@ export default function AdminPage() {
           }
           if (data.queue && data.queue.length > 0) {
             console.log('Queue updated:', data.queue.map((t: any) => t.name).join(', '));
+          }
+          if (data.albums && Array.isArray(data.albums)) {
+            console.log('Albums updated:', data.albums.length, 'albums');
+            setAlbums(data.albums);
           }
           setNowPlaying(data.nowPlaying);
           // Fallback: if server doesn't include isPlaying, keep previous value
@@ -289,7 +296,7 @@ export default function AdminPage() {
 
       if (queueRes.ok) {
         const queueData = await queueRes.json();
-        setUpNext(normalizeQueue(queueData));
+        setUpNext(queueData);
       }
 
       setPlaybackLoaded(true);
@@ -297,6 +304,58 @@ export default function AdminPage() {
     } catch (error) {
       console.error('Error refreshing playback data:', error);
     }
+  };
+
+  const handleDragStart = (e: React.DragEvent, album: Album) => {
+    setDraggedAlbum(album);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    setDragOverIndex(index);
+  };
+
+  const handleDragEnd = async () => {
+    if (!draggedAlbum || dragOverIndex === null) {
+      setDraggedAlbum(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const draggedIndex = albums.findIndex(album => album.id === draggedAlbum.id);
+    if (draggedIndex === -1 || draggedIndex === dragOverIndex) {
+      setDraggedAlbum(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    // Reorder albums
+    const newAlbums = [...albums];
+    const [removed] = newAlbums.splice(draggedIndex, 1);
+    newAlbums.splice(dragOverIndex, 0, removed);
+
+    // Update positions
+    const updatedAlbums = newAlbums.map((album, index) => ({
+      ...album,
+      position: index
+    }));
+
+    setAlbums(updatedAlbums);
+
+    // Update positions on server
+    try {
+      await fetch(`${apiBase}/api/admin/albums/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedAlbums.map(album => ({ id: album.id, position: album.position })))
+      });
+    } catch (error) {
+      console.error('Error updating album positions:', error);
+    }
+
+    setDraggedAlbum(null);
+    setDragOverIndex(null);
   };
 
 
@@ -499,15 +558,31 @@ export default function AdminPage() {
                       </div>
                     ))
                   ) : (
-                    albums.map(album => (
-                      <div key={album.id} className="group relative">
+                    [...albums].sort((a, b) => a.position - b.position).map((album, index) => (
+                      <div
+                        key={album.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, album)}
+                        onDragOver={(e) => handleDragOver(e, index)}
+                        onDragEnd={handleDragEnd}
+                        className={`group relative cursor-move transition-all duration-200 ${
+                          dragOverIndex === index ? 'ring-2 ring-blue-500 ring-offset-2' : ''
+                        }`}
+                      >
                         <img alt={`${album.name} album cover`} className="w-full h-auto rounded-lg object-cover aspect-square shadow-md" src={album.image} />
+                        <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
+                          {index + 1}
+                        </div>
                         <button
                           onClick={() => removeAlbum(album.id)}
                           className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
                         >
                           <span className="material-icons text-base">delete</span>
                         </button>
+                        <div className="absolute bottom-2 left-2 right-2 bg-black/70 text-white p-2 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                          <p className="font-semibold text-sm leading-tight truncate">{album.name}</p>
+                          <p className="text-xs text-gray-300 truncate">{album.artist}</p>
+                        </div>
                         <div className="mt-3 text-center">
                           <p className="font-semibold text-gray-800 text-base leading-tight">{album.name}</p>
                           <p className="text-sm text-gray-500 mt-1">{album.artist}</p>
