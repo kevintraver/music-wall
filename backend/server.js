@@ -32,7 +32,9 @@ const localIP = getLocalIP();
 console.log('Local IP for QR codes:', localIP);
 
 // WebSocket server
-const wss = new WebSocket.Server({ port: 3002 });
+const WS_PORT = process.env.WS_PORT ? Number(process.env.WS_PORT) : 3002;
+const wss = new WebSocket.Server({ port: WS_PORT });
+console.log('WebSocket server listening on port', WS_PORT);
 const clients = [];
 
 wss.on('connection', (ws) => {
@@ -66,6 +68,8 @@ function generateCodeChallenge(verifier) {
   const hash = crypto.createHash('sha256').update(verifier).digest();
   return hash.toString('base64url');
 }
+
+
 
 // Refresh token function
 async function refreshAccessToken() {
@@ -133,6 +137,8 @@ setInterval(() => {
   if (refreshToken) refreshAccessToken();
 }, 3000000); // Refresh user token every 50 min
 
+
+
 // Poll for now playing and queue, send to WS clients
 setInterval(async () => {
   if (accessToken) {
@@ -163,9 +169,13 @@ setInterval(async () => {
       sendUpdate(update);
     } catch (error) {
       console.error('Error polling for WS:', error);
+      // Add specific handling for rate limits
+      if (error.statusCode === 429) {
+        console.log('Rate limited during polling, will retry on next interval');
+      }
     }
   }
-}, 3000); // Reduced to 3s for even better sync
+}, 5000); // Poll every 5 seconds for better responsiveness
 
 // OAuth routes
 app.get('/auth/login', (req, res) => {
@@ -208,38 +218,32 @@ app.get('/callback', async (req, res) => {
 
 // Routes
 app.get('/api/albums', async (req, res) => {
-  // Just return the albums from JSON without enriching to avoid rate limits
-  // The images are already stored in the JSON file
-  res.json(albums);
+  try {
+    const enrichedAlbums = await Promise.all(albums.map(async (album) => {
+      try {
+        const data = await spotifyApi.getAlbum(album.id);
+        return {
+          ...album,
+          image: data.body.images[0]?.url || album.image
+        };
+      } catch (error) {
+        console.error('Error fetching album:', album.id, error.message);
+        return album;
+      }
+    }));
+    res.json(enrichedAlbums);
+  } catch (error) {
+    console.error('Error in /api/albums:', error);
+    res.json(albums);
+  }
 });
 
-// Simple cache to avoid repeated API calls
-const albumCache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 
 app.get('/api/album/:id', async (req, res) => {
   const albumId = req.params.id;
-  console.log('Fetching album:', albumId, 'User token available:', !!accessToken);
-  
-  // Check cache first
-  const cached = albumCache.get(albumId);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    console.log('Returning cached album data for:', albumId);
-    return res.json(cached.data);
-  }
-  
   try {
-    // Use user token if available for better access, otherwise use client credentials
-    if (accessToken) {
-      spotifyApi.setAccessToken(accessToken);
-    }
-    
-    // Add small delay to avoid rate limiting
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
     const data = await spotifyApi.getAlbum(albumId);
-    console.log('Successfully fetched album from Spotify:', data.body.name, 'with', data.body.tracks.items.length, 'tracks');
-    
     const album = {
       id: data.body.id,
       name: data.body.name,
@@ -252,32 +256,14 @@ app.get('/api/album/:id', async (req, res) => {
         artist: track.artists[0]?.name
       }))
     };
-    
-    // Cache the result
-    albumCache.set(albumId, { data: album, timestamp: Date.now() });
-    
     res.json(album);
   } catch (error) {
-    console.error('Spotify API error for album', albumId, ':', {
-      message: error.message,
-      statusCode: error.statusCode,
-      body: error.body
-    });
-    
-    // If rate limited, wait and don't hit fallback immediately
-    if (error.statusCode === 429) {
-      console.log('Rate limited, waiting before fallback...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-    
-    // Fallback to JSON data - reload albums first
-    albums = loadAlbums();
+    console.error('Error fetching album:', albumId, error.message);
+    // Fallback to JSON
     const album = albums.find(a => a.id === albumId);
     if (album) {
-      console.log('Using fallback JSON data for album:', albumId, 'with', album.tracks?.length || 0, 'tracks');
       res.json(album);
     } else {
-      console.log('Album not found in JSON fallback:', albumId);
       res.status(404).json({ error: 'Album not found' });
     }
   }

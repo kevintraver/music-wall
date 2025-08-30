@@ -32,6 +32,7 @@ export default function AlbumPage() {
   const [upNext, setUpNext] = useState<import("@/lib/queue").MinimalTrack[]>([]);
   const [pendingTrackId, setPendingTrackId] = useState<string | null>(null);
   const [albumLoading, setAlbumLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -99,6 +100,7 @@ export default function AlbumPage() {
     tryFetchWithHeuristics()
       .then((data) => {
         if (!data) throw new Error(`Failed to load album ${albumId}`);
+        if (data.error) throw new Error(data.error);
         try { console.debug('Album API payload received', data); } catch {}
         // Normalize possible backend shapes for album + tracks
         const root = data?.album ? data.album : data;
@@ -138,6 +140,7 @@ export default function AlbumPage() {
       .catch((err) => {
         console.error(err);
         setAlbum(null);
+        setError(err.message || "Failed to load album");
       })
       .finally(() => setAlbumLoading(false));
   }, [albumId]);
@@ -262,15 +265,42 @@ export default function AlbumPage() {
     }
   };
 
-  if (albumLoading || !album) {
+  if (albumLoading) {
+    return <div>Loading album...</div>;
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white p-4">
+        <div className="max-w-md mx-auto text-center">
+          <div className="text-red-400 text-xl mb-4">⚠️</div>
+          <h1 className="text-2xl font-bold mb-4">Album Not Available</h1>
+          <p className="text-gray-400 mb-4">{error}</p>
+          <p className="text-sm text-gray-500">This might be due to Spotify API rate limits or network issues.</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-6 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!album) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white p-4">
+        <div className="max-w-md mx-auto text-center">
+          <h1 className="text-2xl font-bold mb-4">Album Not Found</h1>
+          <p className="text-gray-400">The requested album could not be found.</p>
+        </div>
+      </div>
+    );
+  }
     return (
       <div className="min-h-screen bg-gray-900 text-white p-4">
         <div className="max-w-md mx-auto">
-          <Skeleton className="w-[300px] h-[300px] mx-auto rounded-lg" />
-          <Skeleton className="w-2/3 h-6 mt-4 mx-auto" />
-          <Skeleton className="w-1/3 h-4 mt-2 mx-auto" />
           <div className="mt-8">
-            <Skeleton className="w-1/2 h-5 mb-4" />
             <div className="space-y-2">
               {Array.from({ length: 8 }).map((_, i) => (
                 <Skeleton key={i} className="w-full h-10 rounded" />
