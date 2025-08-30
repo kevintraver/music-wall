@@ -106,7 +106,7 @@ app.get('/auth/login', (req, res) => {
   codeVerifier = generateCodeVerifier();
   const codeChallenge = generateCodeChallenge(codeVerifier);
   const scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private';
-  const authUrl = `https://accounts.spotify.com/authorize?client_id=${process.env.SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(`http://${localIP}:3001/callback`)}&code_challenge_method=S256&code_challenge=${codeChallenge}&scope=${encodeURIComponent(scopes)}`;
+  const authUrl = `https://accounts.spotify.com/authorize?client_id=${process.env.SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent('http://127.0.0.1:3001/callback')}&code_challenge_method=S256&code_challenge=${codeChallenge}&scope=${encodeURIComponent(scopes)}`;
   res.redirect(authUrl);
 });
 
@@ -125,7 +125,7 @@ app.get('/callback', async (req, res) => {
         client_id: process.env.SPOTIFY_CLIENT_ID,
         grant_type: 'authorization_code',
         code: code,
-        redirect_uri: `http://${localIP}:3001/callback`,
+        redirect_uri: 'http://127.0.0.1:3001/callback',
         code_verifier: codeVerifier,
       }),
     });
