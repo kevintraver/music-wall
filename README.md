@@ -2,13 +2,24 @@
 
 A web app for displaying a grid of albums with QR codes. Guests scan to queue tracks on Spotify.
 
+## Updated PRD (v1.1)
+
+Based on implementation changes:
+
+### Key Updates
+- **Playback Backend**: Changed from Spotifyd to host's Spotify app for simpler setup
+- **Realtime Updates**: WebSocket instead of HTTP polling for instant updates
+- **Mobile Access**: Dynamic IP detection for QR codes and API calls
+- **Process Management**: Justfile with PM2 support for development
+- **Admin Features**: OAuth authentication, playback controls, album management
+
 ## Features
 
-- Wall view: Grid of albums with QR codes
-- Mobile flow: Scan QR → select track → queue
-- Real-time Now Playing and Up Next updates via WebSocket
-- Admin dashboard: Login, manage albums, control playback
-- Spotify app integration for playback on host device
+- Wall view: Grid of albums with QR codes (dynamic IP for mobile)
+- Mobile flow: Scan QR → select track → queue with success feedback
+- Real-time Now Playing and Up Next updates via WebSocket (instant, no polling delay)
+- Admin dashboard: OAuth login, album management, playback controls (play/pause/skip)
+- Spotify app integration for playback on host device (no Spotifyd required)
 
 ## Prerequisites
 
@@ -41,16 +52,18 @@ just install
 2. Log in with your Spotify Premium account.
 3. Keep Spotify app running during the event.
 4. The web app will control playback through your active Spotify device.
+5. WebSocket server (port 3002) for real-time updates.
 
 ### 4. Run the App
 
 ```bash
-just start-all
+just install  # Install dependencies including PM2
+just start-all  # Start with PM2 if available
 ```
 
-- Backend: http://localhost:3001
-- Frontend: http://localhost:3000
-- Admin: http://localhost:3000/admin
+- Backend: http://localhost:3001 (HTTP) + ws://localhost:3002 (WebSocket)
+- Frontend: http://localhost:3000 (or IP for mobile)
+- Admin: http://localhost:3000/admin (or IP)
 
 ### 5. Admin Setup
 
@@ -67,21 +80,22 @@ just start-all
 
 ## Development
 
-- `just install` - Install all dependencies (including pm2)
+- `just install` - Install all dependencies (including pm2 and ws)
 - `just start-backend` - Run backend only (uses pm2 if available)
 - `just start-frontend` - Run frontend only (uses pm2 if available)
 - `just start-all` - Run backend and frontend
 - `just stop` - Stop all processes (uses pm2 if available)
 - `just restart` - Restart all processes (uses pm2 if available)
-
 - `just clean` - Remove node_modules
 
-PM2 provides better process management with logs, monitoring, and graceful restarts. If pm2 is not installed, commands fall back to basic process handling.
+PM2 provides better process management with logs, monitoring, and graceful restarts. If pm2 is not installed, commands fall back to basic process handling. WebSocket server runs on port 3002 for real-time updates.
 
 ## Prototype Notes
 
 - Uses JSON file for albums (albums.json)
 - In-memory state for queue
-- WebSocket for real-time updates (5s interval)
-- Basic auth for admin (admin/password)
-- OAuth2 PKCE for Spotify user authentication
+- WebSocket for real-time updates (5s backend polling, instant client updates)
+- Basic auth for admin (admin/password) + OAuth2 PKCE for Spotify user authentication
+- Dynamic IP detection for mobile access
+- PM2 process management with fallbacks
+- Playback through host's Spotify app (no Spotifyd)
