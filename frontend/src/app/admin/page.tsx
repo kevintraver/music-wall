@@ -308,6 +308,7 @@ export default function AdminPage() {
   };
 
   const handleDragStart = (e: React.DragEvent, album: Album, index: number) => {
+    e.stopPropagation();
     setDraggedAlbum(album);
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
@@ -316,6 +317,7 @@ export default function AdminPage() {
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
 
     if (draggedIndex !== null && draggedIndex !== index) {
@@ -323,13 +325,16 @@ export default function AdminPage() {
     }
   };
 
-  const handleDragLeave = () => {
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     // Only clear dragOverIndex if we're actually leaving the drop zone
     setDragOverIndex(null);
   };
 
   const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
+    e.stopPropagation();
 
     if (!draggedAlbum || draggedIndex === null) {
       setDraggedAlbum(null);
@@ -379,6 +384,38 @@ export default function AdminPage() {
     setDraggedIndex(null);
     setDragOverIndex(null);
   };
+
+  // Global drag event handlers to prevent interference with other UI elements
+  useEffect(() => {
+    const handleGlobalDragOver = (e: DragEvent) => {
+      // Only prevent default if we're actually dragging something from our component
+      if (draggedAlbum) {
+        e.preventDefault();
+        e.dataTransfer!.dropEffect = 'move';
+      }
+    };
+
+    const handleGlobalDrop = (e: DragEvent) => {
+      // Only handle drops if we're dragging from our component
+      if (!draggedAlbum) return;
+
+      e.preventDefault();
+      // Reset drag state if dropped outside valid drop zones
+      setDraggedAlbum(null);
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+    };
+
+    if (draggedAlbum) {
+      document.addEventListener('dragover', handleGlobalDragOver);
+      document.addEventListener('drop', handleGlobalDrop);
+    }
+
+    return () => {
+      document.removeEventListener('dragover', handleGlobalDragOver);
+      document.removeEventListener('drop', handleGlobalDrop);
+    };
+  }, [draggedAlbum]);
 
 
 
@@ -569,7 +606,16 @@ export default function AdminPage() {
               {/* Wall left: 2 columns */}
               <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md">
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">Current Wall</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-5 gap-6">
+                <div
+                  className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-5 gap-6"
+                  onDragOver={(e) => {
+                    // Prevent drag over from bubbling up to parent elements
+                    if (draggedAlbum) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }
+                  }}
+                >
                   {albumsLoading ? (
                     Array.from({ length: 10 }).map((_, i) => (
                       <div key={i} className="group relative">
@@ -593,10 +639,10 @@ export default function AdminPage() {
                           draggable={!isDraggedItem}
                           onDragStart={(e) => handleDragStart(e, album, index)}
                           onDragOver={(e) => handleDragOver(e, index)}
-                          onDragLeave={handleDragLeave}
+                          onDragLeave={(e) => handleDragLeave(e)}
                           onDrop={(e) => handleDrop(e, index)}
                           onDragEnd={handleDragEnd}
-                          className={`group relative cursor-move transition-all duration-200 ${
+                          className={`group relative cursor-move transition-all duration-200 select-none ${
                             isDraggedItem ? 'opacity-50 scale-95' : ''
                           } ${
                             isDropTarget ? 'ring-2 ring-blue-500 ring-offset-2' : ''
@@ -605,7 +651,9 @@ export default function AdminPage() {
                           }`}
                           style={{
                             transform: shouldShift ? 'translateX(8px)' : 'translateX(0px)',
-                            transition: 'transform 0.2s ease'
+                            transition: 'transform 0.2s ease',
+                            userSelect: 'none',
+                            WebkitUserSelect: 'none'
                           }}
                         >
                           <img alt={`${album.name} album cover`} className="w-full h-auto rounded-lg object-cover aspect-square shadow-md" src={album.image} />
