@@ -203,7 +203,7 @@ export default function Home() {
 
 
   return (
-    <div className="h-screen bg-black text-white px-16 pt-10 pb-6 flex flex-col overflow-hidden">
+    <div className="h-screen bg-black text-white px-8 lg:px-10 pt-10 pb-6 flex flex-col overflow-hidden">
       {/* Connection status indicator */}
       <div className="fixed top-4 right-4 z-50">
         <div className={`w-3 h-3 rounded-full shadow-lg ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>

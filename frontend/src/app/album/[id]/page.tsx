@@ -1,6 +1,5 @@
 'use client';
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Skeleton from "@/components/Skeleton";
@@ -29,20 +28,57 @@ export default function AlbumPage() {
   const [album, setAlbum] = useState<Album | null>(null);
   const [apiBase, setApiBase] = useState('');
   const [message, setMessage] = useState('');
-  const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
   const [queuedTrack, setQueuedTrack] = useState<string>('');
   const [upNext, setUpNext] = useState<import("@/lib/queue").MinimalTrack[]>([]);
   const [pendingTrackId, setPendingTrackId] = useState<string | null>(null);
   const [albumLoading, setAlbumLoading] = useState(true);
-  const [playbackLoaded, setPlaybackLoaded] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
 
   useEffect(() => {
     const base = `http://${window.location.hostname}:3001`;
     setApiBase(base);
     fetch(`${base}/api/album/${albumId}`)
-      .then(res => res.json())
-      .then(setAlbum)
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load album ${albumId}`);
+        return res.json();
+      })
+      .then((data) => {
+        // Normalize possible backend shapes for album + tracks
+        const root = data?.album ? data.album : data;
+        const pickList = (d: any): any[] | null => {
+          if (!d) return null;
+          if (Array.isArray(d.tracks)) return d.tracks;
+          if (Array.isArray(d?.tracks?.items)) return d.tracks.items;
+          if (Array.isArray(d?.items)) return d.items;
+          return null;
+        };
+
+        const rawList = pickList(root) ?? pickList(data) ?? [];
+        const tracks: Track[] = (rawList as any[]).map((t: any) => {
+          const n = t?.track ?? t; // some APIs nest under `track`
+          return {
+            id: n?.id ?? n?.track_id ?? n?.uri ?? '',
+            name: n?.name ?? n?.title ?? n?.track_name ?? '',
+            duration_ms: n?.duration_ms ?? n?.duration ?? 0,
+            artist: n?.artist ?? n?.artist_name ?? n?.artists?.[0]?.name,
+            image: n?.image ?? n?.album_art ?? n?.album?.images?.[0]?.url,
+          } as Track;
+        }).filter((t: Track) => !!t.id);
+
+        const sanitized: Album = {
+          id: root?.id ?? albumId,
+          name: root?.name ?? '',
+          artist: root?.artist ?? root?.artists?.[0]?.name ?? '',
+          image: root?.image ?? root?.images?.[0]?.url ?? '',
+          position: root?.position ?? 0,
+          tracks,
+        };
+        setAlbum(sanitized);
+      })
+      .catch((err) => {
+        console.error(err);
+        setAlbum(null);
+      })
       .finally(() => setAlbumLoading(false));
   }, [albumId]);
 
@@ -83,9 +119,7 @@ export default function AlbumPage() {
             return;
           }
 
-          setNowPlaying(data.nowPlaying);
           setUpNext(normalizeQueue(data));
-          setPlaybackLoaded(true);
         } catch (error) {
           console.error('Error processing WebSocket message:', error);
         }
@@ -219,25 +253,11 @@ export default function AlbumPage() {
             <p>{queuedTrack}</p>
           </div>
         )}
-        <div className="text-center mt-4">
-          <h3 className="text-lg font-semibold">Now Playing</h3>
-          {playbackLoaded ? (
-            nowPlaying ? (
-              <p>{nowPlaying.name} - {nowPlaying.artist}</p>
-            ) : (
-              <p className="text-gray-400">No track playing</p>
-            )
-          ) : (
-            <div className="flex items-center justify-center gap-3 mt-2">
-              <Skeleton className="w-10 h-10" />
-              <Skeleton className="w-40 h-4" />
-            </div>
-          )}
-        </div>
+        {/* Now Playing removed for QR queue page */}
         <div className="mt-8">
           <h2 className="text-xl font-semibold mb-4">Tracks</h2>
           <ul className="space-y-2">
-            {album.tracks.map(track => {
+            {(album.tracks ?? []).map(track => {
               const isQueued = upNext.some(t => t.id === track.id);
               const isPending = pendingTrackId === track.id;
               return (
