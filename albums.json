@@ -1,0 +1,38 @@
+[
+  {
+    "id": "4yP0hdKOZPNshxUOjY0cZj",
+    "name": "Abbey Road",
+    "artist": "The Beatles",
+    "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+  },
+  {
+    "id": "1A2GTWGtFfWp7KSQTwWOyo",
+    "name": "Discovery",
+    "artist": "Daft Punk",
+    "image": "https://i.scdn.co/image/ab67616d0000b273b33d5eba326fc63ff4855c4c"
+  },
+  {
+    "id": "2nLOHgzXzwFEpl62zAgCEC",
+    "name": "Random Access Memories",
+    "artist": "Daft Punk",
+    "image": "https://i.scdn.co/image/ab67616d0000b2739b9b36b0e22870b9f542d937"
+  },
+  {
+    "id": "4LH4d3cOWNNsVw41Gqt2kv",
+    "name": "Illmatic",
+    "artist": "Nas",
+    "image": "https://i.scdn.co/image/ab67616d0000b273f8a8a9b6e5b9b9b9b9b9b9b9"
+  },
+  {
+    "id": "1DFixLWuPkv3KT3TnV35m3",
+    "name": "My Beautiful Dark Twisted Fantasy",
+    "artist": "Kanye West",
+    "image": "https://i.scdn.co/image/ab67616d0000b2730f3a6a4b8b8b8b8b8b8b8b8b"
+  },
+  {
+    "id": "6TJmQnO44YE5BtTxH8pop1",
+    "name": "The College Dropout",
+    "artist": "Kanye West",
+    "image": "https://i.scdn.co/image/ab67616d0000b2734f9b6b8b8b8b8b8b8b8b8b8b"
+  }
+]
