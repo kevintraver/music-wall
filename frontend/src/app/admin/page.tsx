@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from "react";
-import Head from "next/head";
 
 interface Album {
   id: string;
@@ -153,14 +152,6 @@ export default function AdminPage() {
 
   return (
     <>
-      <Head>
-        <title>Admin Dashboard</title>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-        <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
-        <style>{`
-          body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        `}</style>
-      </Head>
       <div className="min-h-screen flex flex-col bg-gray-100">
         <header className="bg-white shadow-sm">
           <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
@@ -297,7 +288,7 @@ export default function AdminPage() {
               </div>
             </div>
           </div>
-        </main>
+       </main>
       </div>
     </>
   );
