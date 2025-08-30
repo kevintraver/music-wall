@@ -84,10 +84,14 @@ just start-all
 
 ## Development
 
+- `just install` - Install all dependencies
 - `just start-backend` - Run backend only
 - `just start-frontend` - Run frontend only
-- `just install` - Install all dependencies
+- `just start-all` - Run backend and frontend
+- `just stop` - Stop all processes
+- `just restart` - Restart all processes
 - `just spotifyd` - Run Spotifyd (requires config)
+- `just clean` - Remove node_modules
 
 ## Prototype Notes
 
