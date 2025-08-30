@@ -31,6 +31,7 @@ export default function Home() {
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
   const [queueLoaded, setQueueLoaded] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     const base = `http://${window.location.hostname}:3001`;
@@ -153,10 +154,51 @@ export default function Home() {
     return () => window.clearInterval(id);
   }, [apiBase]);
 
+  // Poll albums periodically to ensure sync with admin changes
+  useEffect(() => {
+    if (!apiBase) return;
+    const id = window.setInterval(() => {
+      fetch(`${apiBase}/api/albums`)
+        .then(res => res.json())
+        .then((albumsData) => setAlbums(albumsData))
+        .catch(() => {/* ignore */});
+    }, 10000); // Refresh albums every 10 seconds
+    return () => window.clearInterval(id);
+  }, [apiBase]);
+
+  const refreshAlbums = async () => {
+    if (!apiBase || refreshing) return;
+    setRefreshing(true);
+    try {
+      const response = await fetch(`${apiBase}/api/albums`);
+      if (response.ok) {
+        const albumsData = await response.json();
+        setAlbums(albumsData);
+      }
+    } catch (error) {
+      console.error('Error refreshing albums:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <div className="h-screen bg-black text-white px-8 pt-8 pb-6 flex flex-col overflow-hidden">
       {/* Connection status indicator */}
-      <div className="fixed top-4 right-4 z-50">
+      <div className="fixed top-4 right-4 z-50 flex items-center space-x-4">
+        <button
+          onClick={refreshAlbums}
+          disabled={refreshing}
+          className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-3 py-2 rounded-lg shadow-lg transition-colors duration-200 flex items-center space-x-2"
+          title="Refresh albums"
+        >
+          <span className="material-icons text-sm">
+            {refreshing ? 'refresh' : 'sync'}
+          </span>
+          <span className="text-sm">
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </span>
+        </button>
         <div className="flex items-center space-x-2 bg-gray-800 px-3 py-2 rounded-lg shadow-lg">
           <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
           <span className="text-sm text-gray-300">

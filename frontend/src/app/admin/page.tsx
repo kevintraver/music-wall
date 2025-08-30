@@ -39,6 +39,7 @@ export default function AdminPage() {
   const albumsRef = useRef<Album[]>([]);
   const [albumsLoading, setAlbumsLoading] = useState(true);
   const [draggedAlbum, setDraggedAlbum] = useState<Album | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
   const [queueLoaded, setQueueLoaded] = useState(false);
@@ -306,26 +307,40 @@ export default function AdminPage() {
     }
   };
 
-  const handleDragStart = (e: React.DragEvent, album: Album) => {
+  const handleDragStart = (e: React.DragEvent, album: Album, index: number) => {
     setDraggedAlbum(album);
+    setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', album.id);
   };
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
-    setDragOverIndex(index);
+    e.dataTransfer.dropEffect = 'move';
+
+    if (draggedIndex !== null && draggedIndex !== index) {
+      setDragOverIndex(index);
+    }
   };
 
-  const handleDragEnd = async () => {
-    if (!draggedAlbum || dragOverIndex === null) {
+  const handleDragLeave = () => {
+    // Only clear dragOverIndex if we're actually leaving the drop zone
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+
+    if (!draggedAlbum || draggedIndex === null) {
       setDraggedAlbum(null);
+      setDraggedIndex(null);
       setDragOverIndex(null);
       return;
     }
 
-    const draggedIndex = albums.findIndex(album => album.id === draggedAlbum.id);
-    if (draggedIndex === -1 || draggedIndex === dragOverIndex) {
+    if (draggedIndex === dropIndex) {
       setDraggedAlbum(null);
+      setDraggedIndex(null);
       setDragOverIndex(null);
       return;
     }
@@ -333,7 +348,7 @@ export default function AdminPage() {
     // Reorder albums
     const newAlbums = [...albums];
     const [removed] = newAlbums.splice(draggedIndex, 1);
-    newAlbums.splice(dragOverIndex, 0, removed);
+    newAlbums.splice(dropIndex, 0, removed);
 
     // Update positions
     const updatedAlbums = newAlbums.map((album, index) => ({
@@ -355,6 +370,13 @@ export default function AdminPage() {
     }
 
     setDraggedAlbum(null);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedAlbum(null);
+    setDraggedIndex(null);
     setDragOverIndex(null);
   };
 
@@ -558,37 +580,55 @@ export default function AdminPage() {
                       </div>
                     ))
                   ) : (
-                    [...albums].sort((a, b) => a.position - b.position).map((album, index) => (
-                      <div
-                        key={album.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, album)}
-                        onDragOver={(e) => handleDragOver(e, index)}
-                        onDragEnd={handleDragEnd}
-                        className={`group relative cursor-move transition-all duration-200 ${
-                          dragOverIndex === index ? 'ring-2 ring-blue-500 ring-offset-2' : ''
-                        }`}
-                      >
-                        <img alt={`${album.name} album cover`} className="w-full h-auto rounded-lg object-cover aspect-square shadow-md" src={album.image} />
-                        <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
-                          {index + 1}
-                        </div>
-                        <button
-                          onClick={() => removeAlbum(album.id)}
-                          className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
+                    [...albums].sort((a, b) => a.position - b.position).map((album, index) => {
+                      const isDraggedItem = draggedAlbum?.id === album.id;
+                      const isDropTarget = dragOverIndex === index;
+                      const shouldShift = dragOverIndex !== null && draggedIndex !== null &&
+                                         ((index > draggedIndex && index <= dragOverIndex) ||
+                                          (index < draggedIndex && index >= dragOverIndex));
+
+                      return (
+                        <div
+                          key={album.id}
+                          draggable={!isDraggedItem}
+                          onDragStart={(e) => handleDragStart(e, album, index)}
+                          onDragOver={(e) => handleDragOver(e, index)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, index)}
+                          onDragEnd={handleDragEnd}
+                          className={`group relative cursor-move transition-all duration-200 ${
+                            isDraggedItem ? 'opacity-50 scale-95' : ''
+                          } ${
+                            isDropTarget ? 'ring-2 ring-blue-500 ring-offset-2' : ''
+                          } ${
+                            shouldShift ? 'transform translate-x-2' : ''
+                          }`}
+                          style={{
+                            transform: shouldShift ? 'translateX(8px)' : 'translateX(0px)',
+                            transition: 'transform 0.2s ease'
+                          }}
                         >
-                          <span className="material-icons text-base">delete</span>
-                        </button>
-                        <div className="absolute bottom-2 left-2 right-2 bg-black/70 text-white p-2 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          <p className="font-semibold text-sm leading-tight truncate">{album.name}</p>
-                          <p className="text-xs text-gray-300 truncate">{album.artist}</p>
+                          <img alt={`${album.name} album cover`} className="w-full h-auto rounded-lg object-cover aspect-square shadow-md" src={album.image} />
+                          <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
+                            {index + 1}
+                          </div>
+                          <button
+                            onClick={() => removeAlbum(album.id)}
+                            className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
+                          >
+                            <span className="material-icons text-base">delete</span>
+                          </button>
+                          <div className="absolute bottom-2 left-2 right-2 bg-black/70 text-white p-2 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <p className="font-semibold text-sm leading-tight truncate">{album.name}</p>
+                            <p className="text-xs text-gray-300 truncate">{album.artist}</p>
+                          </div>
+                          <div className="mt-3 text-center">
+                            <p className="font-semibold text-gray-800 text-base leading-tight">{album.name}</p>
+                            <p className="text-sm text-gray-500 mt-1">{album.artist}</p>
+                          </div>
                         </div>
-                        <div className="mt-3 text-center">
-                          <p className="font-semibold text-gray-800 text-base leading-tight">{album.name}</p>
-                          <p className="text-sm text-gray-500 mt-1">{album.artist}</p>
-                        </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
