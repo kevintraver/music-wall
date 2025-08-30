@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import Skeleton from "@/components/Skeleton";
+import { normalizeQueue } from "@/lib/queue";
 
 interface Album {
   id: string;
@@ -23,10 +24,11 @@ export default function Home() {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [qrs, setQrs] = useState<{ [key: string]: string }>({});
   const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
-  const [upNext, setUpNext] = useState<Track[]>([]);
+  const [upNext, setUpNext] = useState<import("@/lib/queue").MinimalTrack[]>([]);
   const [apiBase, setApiBase] = useState('');
   const [albumsLoading, setAlbumsLoading] = useState(true);
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
+  const [queueLoaded, setQueueLoaded] = useState(false);
 
   useEffect(() => {
     const base = `http://${window.location.hostname}:3001`;
@@ -53,15 +55,37 @@ export default function Home() {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       setNowPlaying(data.nowPlaying);
-      setUpNext(data.queue);
+      const normalized = normalizeQueue(data);
+      if (normalized.length) setUpNext(normalized);
       setPlaybackLoaded(true);
+      setQueueLoaded(true);
     };
     return () => ws.close();
   }, []);
 
+  // Seed queue initially from API in case WS message is delayed or lacks queue
+  useEffect(() => {
+    if (!apiBase) return;
+    fetch(`${apiBase}/api/queue`)
+      .then(res => res.json())
+      .then((payload) => { setUpNext(normalizeQueue(payload)); setQueueLoaded(true); })
+      .catch(() => setQueueLoaded(true));
+  }, [apiBase]);
+
+  // Poll queue as fallback if WS doesn’t include it continuously
+  useEffect(() => {
+    if (!apiBase) return;
+    const id = window.setInterval(() => {
+      fetch(`${apiBase}/api/queue`)
+        .then(res => res.json())
+        .then((payload) => setUpNext(normalizeQueue(payload)))
+        .catch(() => {/* ignore */});
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [apiBase]);
+
   return (
     <div className="min-h-screen bg-black text-white p-4 flex flex-col">
-      <h1 className="text-4xl font-bold text-center mb-8">Song Wall</h1>
       <div className="flex-1 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
         {albumsLoading
           ? Array.from({ length: 8 }).map((_, i) => (
@@ -128,11 +152,13 @@ export default function Home() {
         </div>
         <div className="bg-gray-800 p-4 rounded">
           <h2 className="text-xl font-semibold mb-3">Up Next</h2>
-          {playbackLoaded ? (
+          {queueLoaded ? (
             upNext.length > 0 ? (
               <ul>
                 {upNext.slice(0, 3).map(track => (
-                  <li key={track.id}>{track.name} - {track.artist}</li>
+                  <li key={(track as any).id ?? (track as any).uri ?? `${track.name}-${track.artist}`}>
+                    {track.name} - {track.artist}
+                  </li>
                 ))}
               </ul>
             ) : (

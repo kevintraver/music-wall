@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import Skeleton from "@/components/Skeleton";
+import { normalizeQueue } from "@/lib/queue";
 
 interface Album {
   id: string;
@@ -25,7 +26,7 @@ export default function AdminPage() {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [upNext, setUpNext] = useState<Track[]>([]);
+  const [upNext, setUpNext] = useState<import("@/lib/queue").MinimalTrack[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Album[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -69,20 +70,23 @@ export default function AdminPage() {
   // Fetch initial queue when logged in
   useEffect(() => {
     if (isLoggedIn && apiBase) {
-      const normalizeQueue = (payload: any) => {
-        let q = Array.isArray(payload) ? payload
-          : Array.isArray(payload?.queue) ? payload.queue
-          : Array.isArray(payload?.items) ? payload.items
-          : Array.isArray(payload?.tracks) ? payload.tracks
-          : [];
-        if (q.length && q[0]?.track) q = q.map((x: any) => x.track);
-        return q;
-      };
       fetch(`${apiBase}/api/queue`)
         .then(res => res.json())
         .then((payload) => { setUpNext(normalizeQueue(payload)); setQueueLoaded(true); })
         .catch(() => { setUpNext([]); setQueueLoaded(true); });
     }
+  }, [isLoggedIn, apiBase]);
+
+  // Poll queue periodically as a fallback if WS doesn’t include it
+  useEffect(() => {
+    if (!isLoggedIn || !apiBase) return;
+    const id = window.setInterval(() => {
+      fetch(`${apiBase}/api/queue`)
+        .then(res => res.json())
+        .then((payload) => setUpNext(normalizeQueue(payload)))
+        .catch(() => {/* ignore */});
+    }, 5000);
+    return () => window.clearInterval(id);
   }, [isLoggedIn, apiBase]);
 
   useEffect(() => {
@@ -102,9 +106,8 @@ export default function AdminPage() {
         if (typeof data.isPlaying === 'boolean') {
           setIsPlaying(data.isPlaying);
         }
-        const q = (data.queue ?? data.upNext ?? data.items ?? data.tracks ?? []) as any[];
-        const normalized = (q.length && q[0]?.track) ? q.map((x: any) => x.track) : q;
-        setUpNext(normalized);
+        const normalized = normalizeQueue(data);
+        if (normalized.length) setUpNext(normalized);
         setPlaybackLoaded(true);
         setQueueLoaded(true);
       };
@@ -422,7 +425,7 @@ export default function AdminPage() {
             {/* Wall (left) + Search (right) */}
             <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Wall left: 2 columns */}
-              <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md">
+              <div className="lg:col-span-2 bg-white pt-8 px-6 pb-6 rounded-xl shadow-md">
                 <h2 className="text-2xl font-semibold text-gray-800 mb-6">Current Wall</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-5 gap-6">
                   {albumsLoading ? (
@@ -446,6 +449,7 @@ export default function AdminPage() {
                         </button>
                         <div className="mt-3 text-center">
                           <p className="font-semibold text-gray-800 text-base leading-tight">{album.name}</p>
+                          <p className="text-sm text-gray-500 mt-1">{album.artist}</p>
                         </div>
                       </div>
                     ))
@@ -494,46 +498,50 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <div className="p-6 overflow-y-auto flex-1">
-                  <h3 className="text-lg font-medium text-gray-700 mb-3">Search Results</h3>
-                  <ul className="space-y-3">
-                    {isSearching && (
-                      Array.from({ length: 6 }).map((_, i) => (
-                        <li key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <div className="flex items-center space-x-4">
-                            <Skeleton className="w-12 h-12 rounded-md" />
-                            <div>
-                              <Skeleton className="w-40 h-4" />
-                              <Skeleton className="w-28 h-3 mt-2" />
+                  {(isSearching || searchQuery.trim()) && (
+                    <>
+                      <h3 className="text-lg font-medium text-gray-700 mb-3">Search Results</h3>
+                      <ul className="space-y-3">
+                        {isSearching && (
+                          Array.from({ length: 6 }).map((_, i) => (
+                            <li key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div className="flex items-center space-x-4">
+                                <Skeleton className="w-12 h-12 rounded-md" />
+                                <div>
+                                  <Skeleton className="w-40 h-4" />
+                                  <Skeleton className="w-28 h-3 mt-2" />
+                                </div>
+                              </div>
+                              <Skeleton className="w-6 h-6 rounded-full" />
+                            </li>
+                          ))
+                        )}
+                        {!isSearching && searchResults.length === 0 && searchQuery.trim() && (
+                          <li className="text-gray-500 px-3">No results</li>
+                        )}
+                        {!isSearching && searchResults.map(album => (
+                          <li key={album.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                            <div className="flex items-center space-x-4">
+                              <img alt={`${album.name} album cover`} className="w-12 h-12 rounded-md object-cover" src={album.image} />
+                              <div>
+                                <p className="font-medium text-gray-900">{album.name}</p>
+                                <p className="text-sm text-gray-500">{album.artist}</p>
+                              </div>
                             </div>
-                          </div>
-                          <Skeleton className="w-6 h-6 rounded-full" />
-                        </li>
-                      ))
-                    )}
-                    {!isSearching && searchResults.length === 0 && searchQuery.trim() && (
-                      <li className="text-gray-500 px-3">No results</li>
-                    )}
-                    {!isSearching && searchResults.map(album => (
-                      <li key={album.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
-                        <div className="flex items-center space-x-4">
-                          <img alt={`${album.name} album cover`} className="w-12 h-12 rounded-md object-cover" src={album.image} />
-                          <div>
-                            <p className="font-medium text-gray-900">{album.name}</p>
-                            <p className="text-sm text-gray-500">{album.artist}</p>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          aria-label={`Add ${album.name}`}
-                          onClick={() => { addAlbum(album); }}
-                          disabled={pendingAddId === album.id}
-                          className={`text-green-500 hover:text-green-700 ${pendingAddId === album.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          <span className="material-icons">add_circle_outline</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                            <button
+                              type="button"
+                              aria-label={`Add ${album.name}`}
+                              onClick={() => { addAlbum(album); }}
+                              disabled={pendingAddId === album.id}
+                              className={`text-green-500 hover:text-green-700 ${pendingAddId === album.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              <span className="material-icons">add_circle_outline</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
