@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from "react";
+import Head from "next/head";
 
 interface Album {
   id: string;
@@ -14,6 +15,7 @@ interface Track {
   name: string;
   artist: string;
   album: string;
+  image: string;
 }
 
 export default function AdminPage() {
@@ -25,7 +27,6 @@ export default function AdminPage() {
   const [upNext, setUpNext] = useState<Track[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Album[]>([]);
-  const [showDropdown, setShowDropdown] = useState(false);
   const [apiBase, setApiBase] = useState('');
 
   useEffect(() => {
@@ -84,14 +85,12 @@ export default function AdminPage() {
   useEffect(() => {
     if (!searchQuery || !apiBase) {
       setSearchResults([]);
-      setShowDropdown(false);
       return;
     }
     const timeout = setTimeout(async () => {
       const res = await fetch(`${apiBase}/api/search?q=${encodeURIComponent(searchQuery)}`);
       const results = await res.json();
       setSearchResults(results);
-      setShowDropdown(true);
     }, 300); // Debounce 300ms
     return () => clearTimeout(timeout);
   }, [searchQuery, apiBase]);
@@ -141,108 +140,124 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4">
-      <h1 className="text-4xl font-bold mb-8">Admin Dashboard</h1>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">Search & Add Albums</h2>
-          <div className="mb-4 relative">
-            <input
-              type="text"
-              placeholder="Search albums..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full p-2 bg-gray-700 rounded"
-            />
-            {showDropdown && searchResults.length > 0 && (
-              <ul className="absolute top-full left-0 right-0 bg-gray-800 rounded mt-1 max-h-64 overflow-y-auto z-10">
-                {searchResults.map(album => (
-                  <li key={album.id} className="flex justify-between items-center p-3 hover:bg-gray-700 cursor-pointer" onClick={() => { addAlbum(album); setSearchQuery(''); setShowDropdown(false); }}>
-                    <div className="flex items-center">
-                      <img src={album.image} alt={album.name} width={40} height={40} className="rounded mr-2" />
-                      <span>{album.name} - {album.artist}</span>
-                    </div>
-                    <button className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm">
-                      Add
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+    <>
+      <Head>
+        <title>Admin Dashboard</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+        <style>{`
+          body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        `}</style>
+      </Head>
+      <div className="min-h-screen flex flex-col bg-gray-100">
+        <header className="bg-white shadow-sm">
+          <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+            <h1 className="text-3xl font-bold leading-tight text-gray-900">Admin Dashboard</h1>
           </div>
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">Current Albums on Wall</h2>
-          <ul className="space-y-2 max-h-64 overflow-y-auto">
-            {albums.map(album => (
-              <li key={album.id} className="flex justify-between items-center bg-gray-800 p-3 rounded">
-                <div className="flex items-center">
-                  <img src={album.image} alt={album.name} width={40} height={40} className="rounded mr-2" />
-                  <span>{album.name} - {album.artist}</span>
+        </header>
+        <main className="flex-grow">
+          <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md flex flex-col">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">Now Playing</h2>
+                <div className="flex-grow flex flex-col sm:flex-row items-center justify-center text-center sm:text-left bg-gray-800 text-white p-6 rounded-lg mb-4 gap-6">
+                  {nowPlaying ? (
+                    <>
+                      <img alt={`${nowPlaying.album} album cover`} className="w-48 h-48 rounded-lg shadow-lg" src={nowPlaying.image} />
+                      <div className="flex-1">
+                        <p className="text-3xl font-bold">{nowPlaying.name}</p>
+                        <p className="text-xl text-gray-300 mt-1">{nowPlaying.artist}</p>
+                        <div className="flex items-center justify-center sm:justify-start space-x-4 mt-6">
+                          <button
+                            onClick={() => fetch(`${apiBase}/api/playback/previous`, { method: 'POST' })}
+                            className="bg-gray-700 text-white p-3 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
+                          >
+                            <span className="material-icons">skip_previous</span>
+                          </button>
+                          <button
+                            onClick={() => fetch(`${apiBase}/api/playback/play`, { method: 'POST' })}
+                            className="bg-green-500 text-white p-4 rounded-full hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500"
+                          >
+                            <span className="material-icons text-4xl">play_arrow</span>
+                          </button>
+                          <button
+                            onClick={() => fetch(`${apiBase}/api/playback/pause`, { method: 'POST' })}
+                            className="bg-green-500 text-white p-4 rounded-full hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500"
+                          >
+                            <span className="material-icons text-4xl">pause</span>
+                          </button>
+                          <button
+                            onClick={() => fetch(`${apiBase}/api/playback/next`, { method: 'POST' })}
+                            className="bg-blue-500 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-blue-500 flex items-center"
+                          >
+                            <span className="material-icons mr-1">skip_next</span>
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-xl">No track playing</p>
+                  )}
                 </div>
-                <button onClick={() => removeAlbum(album.id)} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded">
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div>
-          <h2 className="text-2xl font-semibold mb-4">Queue Management</h2>
-          {nowPlaying && (
-            <div className="bg-gray-800 p-4 rounded mb-4">
-              <h3 className="font-semibold">Now Playing</h3>
-              <div className="flex items-center">
-                <img src={nowPlaying.image} alt={nowPlaying.name} width={50} height={50} className="rounded mr-2" />
-                <p>{nowPlaying.name} - {nowPlaying.artist}</p>
+              </div>
+              <div className="lg:col-span-1 bg-white p-6 rounded-xl shadow-md">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">Search & Add Albums</h2>
+                <div className="space-y-4">
+                  <div className="relative">
+                    <span className="material-icons absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">search</span>
+                    <input
+                      type="text"
+                      placeholder="Search albums..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div className="mt-4 border-t border-gray-200 pt-4">
+                    <h3 className="text-lg font-medium text-gray-700 mb-3">Search Results</h3>
+                    <ul className="space-y-3">
+                      {searchResults.map(album => (
+                        <li key={album.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer" onClick={() => addAlbum(album)}>
+                          <div className="flex items-center space-x-4">
+                            <img alt={`${album.name} album cover`} className="w-12 h-12 rounded-md object-cover" src={album.image} />
+                            <div>
+                              <p className="font-medium text-gray-900">{album.name}</p>
+                              <p className="text-sm text-gray-500">{album.artist}</p>
+                            </div>
+                          </div>
+                          <button className="text-green-500 hover:text-green-700">
+                            <span className="material-icons">add_circle_outline</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
-          )}
-          <div className="bg-gray-800 p-4 rounded mb-4">
-            <h3 className="font-semibold">Up Next</h3>
-            <ul className="max-h-32 overflow-y-auto">
-              {upNext.map(track => (
-                <li key={track.id} className="flex items-center mb-2">
-                  <img src={track.image} alt={track.name} width={30} height={30} className="rounded mr-2" />
-                  <span>{track.name} - {track.artist}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-8 bg-white p-6 rounded-xl shadow-md">
+              <h2 className="text-2xl font-semibold text-gray-800 mb-6">Current Wall</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                {albums.map(album => (
+                  <div key={album.id} className="group relative">
+                    <img alt={`${album.name} album cover`} className="w-full h-auto rounded-lg object-cover aspect-square shadow-md" src={album.image} />
+                    <button
+                      onClick={() => removeAlbum(album.id)}
+                      className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
+                    >
+                      <span className="material-icons text-base">delete</span>
+                    </button>
+                    <div className="mt-2 text-center">
+                      <p className="font-semibold text-gray-800 truncate">{album.name}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                console.log('Play button clicked');
-                fetch(`${apiBase}/api/playback/play`, { method: 'POST' }).then(() => console.log('Play command sent'));
-              }}
-              className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded"
-            >
-              Play
-            </button>
-            <button
-              onClick={() => {
-                console.log('Pause button clicked');
-                fetch(`${apiBase}/api/playback/pause`, { method: 'POST' }).then(() => console.log('Pause command sent'));
-              }}
-              className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded"
-            >
-              Pause
-            </button>
-            <button
-              onClick={() => {
-                console.log('Skip button clicked');
-                fetch(`${apiBase}/api/playback/next`, { method: 'POST' }).then(() => console.log('Skip command sent'));
-              }}
-              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
-            >
-              Skip
-            </button>
-          </div>
-        </div>
+        </main>
       </div>
-    </div>
+    </>
   );
 }
