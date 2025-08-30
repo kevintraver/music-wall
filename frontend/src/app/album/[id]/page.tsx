@@ -36,16 +36,13 @@ export default function AlbumPage() {
   }, [albumId]);
 
   useEffect(() => {
-    if (!apiBase) return;
-    const poll = () => {
-      fetch(`${apiBase}/api/now-playing`)
-        .then(res => res.json())
-        .then(setNowPlaying);
+    const ws = new WebSocket(`ws://${window.location.hostname}:3002`);
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      setNowPlaying(data.nowPlaying);
     };
-    poll();
-    const interval = setInterval(poll, 5000);
-    return () => clearInterval(interval);
-  }, [apiBase]);
+    return () => ws.close();
+  }, []);
 
   const queueTrack = (trackId: string) => {
     const track = album?.tracks.find(t => t.id === trackId);

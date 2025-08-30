@@ -7,6 +7,7 @@ const SpotifyWebApi = require('spotify-web-api-node');
 const QRCode = require('qrcode');
 const crypto = require('crypto');
 const os = require('os');
+const WebSocket = require('ws');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -29,6 +30,27 @@ function getLocalIP() {
 
 const localIP = getLocalIP();
 console.log('Local IP for QR codes:', localIP);
+
+// WebSocket server
+const wss = new WebSocket.Server({ port: 3002 });
+const clients = [];
+
+wss.on('connection', (ws) => {
+  console.log('Client connected');
+  clients.push(ws);
+  ws.on('close', () => {
+    console.log('Client disconnected');
+    clients.splice(clients.indexOf(ws), 1);
+  });
+});
+
+function sendUpdate(data) {
+  clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify(data));
+    }
+  });
+}
 
 // OAuth variables
 let codeVerifier = '';
@@ -100,6 +122,34 @@ setInterval(authenticateSpotify, 3600000); // Refresh token every hour
 setInterval(() => {
   if (refreshToken) refreshAccessToken();
 }, 3000000); // Refresh user token every 50 min
+
+// Poll for now playing and queue, send to WS clients
+setInterval(async () => {
+  if (accessToken) {
+    try {
+      const nowPlayingRes = await spotifyApi.getMyCurrentPlayingTrack();
+      const queueRes = await spotifyApi.getMyCurrentPlaybackState();
+      const update = {
+        nowPlaying: nowPlayingRes.body.item ? {
+          id: nowPlayingRes.body.item.id,
+          name: nowPlayingRes.body.item.name,
+          artist: nowPlayingRes.body.item.artists[0].name,
+          album: nowPlayingRes.body.item.album.name,
+          image: nowPlayingRes.body.item.album.images[0]?.url
+        } : null,
+        queue: queueRes.body.queue ? queueRes.body.queue.slice(0, 10).map(track => ({
+          id: track.id,
+          name: track.name,
+          artist: track.artists[0].name,
+          album: track.album.name
+        })) : []
+      };
+      sendUpdate(update);
+    } catch (error) {
+      console.error('Error polling for WS:', error);
+    }
+  }
+}, 5000);
 
 // OAuth routes
 app.get('/auth/login', (req, res) => {

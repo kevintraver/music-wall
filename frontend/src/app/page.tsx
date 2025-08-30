@@ -44,19 +44,14 @@ export default function Home() {
   }, [albums, apiBase]);
 
   useEffect(() => {
-    if (!apiBase) return;
-    const poll = () => {
-      fetch(`${apiBase}/api/now-playing`)
-        .then(res => res.json())
-        .then(setNowPlaying);
-      fetch(`${apiBase}/api/queue`)
-        .then(res => res.json())
-        .then(setUpNext);
+    const ws = new WebSocket(`ws://${window.location.hostname}:3002`);
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      setNowPlaying(data.nowPlaying);
+      setUpNext(data.queue);
     };
-    poll();
-    const interval = setInterval(poll, 5000);
-    return () => clearInterval(interval);
-  }, [apiBase]);
+    return () => ws.close();
+  }, []);
 
   return (
     <div className="min-h-screen bg-black text-white p-4 flex flex-col">

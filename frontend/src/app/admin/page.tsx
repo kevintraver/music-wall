@@ -40,14 +40,20 @@ export default function AdminPage() {
       fetch(`${apiBase}/api/albums`)
         .then(res => res.json())
         .then(setAlbums);
-      fetch(`${apiBase}/api/now-playing`)
-        .then(res => res.json())
-        .then(setNowPlaying);
-      fetch(`${apiBase}/api/queue`)
-        .then(res => res.json())
-        .then(setUpNext);
     }
   }, [isLoggedIn, apiBase]);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      const ws = new WebSocket(`ws://${window.location.hostname}:3002`);
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        setNowPlaying(data.nowPlaying);
+        setUpNext(data.queue);
+      };
+      return () => ws.close();
+    }
+  }, [isLoggedIn]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
