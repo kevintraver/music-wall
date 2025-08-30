@@ -34,6 +34,8 @@ export default function AdminPage() {
   const [apiBase, setApiBase] = useState('');
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<number | null>(null);
+  // Keep a stable reference to albums to avoid re-triggering searches on add
+  const albumsRef = useRef<Album[]>([]);
   const [albumsLoading, setAlbumsLoading] = useState(true);
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
   const [queueLoaded, setQueueLoaded] = useState(false);
@@ -208,7 +210,9 @@ export default function AdminPage() {
       const res = await fetch(`${apiBase}/api/search?q=${encodeURIComponent(q)}`, { signal: controller.signal });
       if (!res.ok) throw new Error('Search failed');
       const results: Album[] = await res.json();
-      setSearchResults(results.filter(album => !albums.some(a => a.id === album.id)));
+      // Use latest albums via ref so adding an album doesn't retrigger search
+      const currentAlbums = albumsRef.current;
+      setSearchResults(results.filter(album => !currentAlbums.some(a => a.id === album.id)));
     } catch (e: any) {
       if (e?.name !== 'AbortError') {
         setSearchResults([]);
@@ -216,7 +220,12 @@ export default function AdminPage() {
     } finally {
       setIsSearching(false);
     }
-  }, [apiBase, albums]);
+  }, [apiBase]);
+
+  useEffect(() => {
+    // Keep albumsRef in sync with latest albums
+    albumsRef.current = albums;
+  }, [albums]);
 
   useEffect(() => {
     if (!apiBase) return;
@@ -225,7 +234,7 @@ export default function AdminPage() {
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
-  }, [searchQuery, apiBase, performSearch]);
+  }, [searchQuery, apiBase]);
 
   const addAlbum = async (album: Album) => {
     setPendingAddId(album.id);
@@ -236,10 +245,8 @@ export default function AdminPage() {
         body: JSON.stringify(album)
       });
       setAlbums([...albums, album]);
+      // Keep search term/results; just remove the added album from current results
       setSearchResults(searchResults.filter(a => a.id !== album.id));
-      // Clear search query and results after successful addition
-      setSearchQuery('');
-      setSearchResults([]);
       setPendingAddId(null);
     } catch (error) {
       console.error('Error adding album:', error);
@@ -282,7 +289,7 @@ export default function AdminPage() {
 
       if (queueRes.ok) {
         const queueData = await queueRes.json();
-        setUpNext(queueData);
+        setUpNext(normalizeQueue(queueData));
       }
 
       setPlaybackLoaded(true);
@@ -479,8 +486,8 @@ export default function AdminPage() {
             {/* Wall (left) + Search (right) */}
             <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Wall left: 2 columns */}
-              <div className="lg:col-span-2 bg-white pt-12 px-6 pb-6 rounded-xl shadow-md">
-                <h2 className="text-2xl font-semibold text-gray-800 mb-6">Current Wall</h2>
+              <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">Current Wall</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-5 gap-6">
                   {albumsLoading ? (
                     Array.from({ length: 10 }).map((_, i) => (

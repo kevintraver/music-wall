@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Skeleton from "@/components/Skeleton";
+import { normalizeQueue } from "@/lib/queue";
 
 interface Track {
   id: string;
@@ -29,10 +30,11 @@ export default function AlbumPage() {
   const [message, setMessage] = useState('');
   const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
   const [queuedTrack, setQueuedTrack] = useState<string>('');
-  const [upNext, setUpNext] = useState<{ id: string }[]>([]);
+  const [upNext, setUpNext] = useState<import("@/lib/queue").MinimalTrack[]>([]);
   const [pendingTrackId, setPendingTrackId] = useState<string | null>(null);
   const [albumLoading, setAlbumLoading] = useState(true);
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
 
   useEffect(() => {
     const base = `http://${window.location.hostname}:3001`;
@@ -44,15 +46,89 @@ export default function AlbumPage() {
   }, [albumId]);
 
   useEffect(() => {
-    const ws = new WebSocket(`ws://${window.location.hostname}:3002`);
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      setNowPlaying(data.nowPlaying);
-      setUpNext(data.queue || []);
-      setPlaybackLoaded(true);
+    let ws: WebSocket | null = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+    const baseReconnectDelay = 1000; // 1 second
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+    let heartbeatInterval: NodeJS.Timeout | null = null;
+
+    const connect = () => {
+      if (ws && ws.readyState === WebSocket.OPEN) return;
+
+      ws = new WebSocket(`ws://${window.location.hostname}:3002`);
+
+      ws.onopen = () => {
+        console.log('Album WebSocket connected');
+        setWsConnected(true);
+        reconnectAttempts = 0;
+
+        // Start heartbeat
+        heartbeatInterval = setInterval(() => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, 30000); // Send ping every 30 seconds
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'pong') return; // Ignore pong responses
+
+          // Validate message structure
+          if (typeof data !== 'object' || data === null) {
+            console.warn('Invalid WebSocket message format');
+            return;
+          }
+
+          setNowPlaying(data.nowPlaying);
+          setUpNext(normalizeQueue(data));
+          setPlaybackLoaded(true);
+        } catch (error) {
+          console.error('Error processing WebSocket message:', error);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('Album WebSocket disconnected, attempting reconnection...');
+        setWsConnected(false);
+        if (heartbeatInterval) {
+          clearInterval(heartbeatInterval);
+          heartbeatInterval = null;
+        }
+
+        if (reconnectAttempts < maxReconnectAttempts) {
+          const delay = baseReconnectDelay * Math.pow(2, reconnectAttempts);
+          reconnectTimeout = setTimeout(() => {
+            reconnectAttempts++;
+            connect();
+          }, delay);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('Album WebSocket error:', error);
+      };
     };
-    return () => ws.close();
+
+    connect();
+
+    return () => {
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      if (ws) ws.close();
+    };
   }, []);
+
+  // Seed queue initially from API in case WS message is delayed or lacks queue
+  useEffect(() => {
+    if (!apiBase) return;
+    fetch(`${apiBase}/api/queue`)
+      .then(res => res.json())
+      .then((payload) => setUpNext(normalizeQueue(payload)))
+      .catch(() => {/* ignore */});
+  }, [apiBase]);
 
   const queueTrack = async (trackId: string) => {
     if (pendingTrackId === trackId) return;
@@ -69,7 +145,19 @@ export default function AlbumPage() {
         setQueuedTrack(track.name);
         setMessage('Track queued successfully!');
         // Optimistically reflect queued state until WS updates
-        setUpNext(prev => (prev.some(t => t.id === trackId) ? prev : [...prev, { id: trackId }]));
+        setUpNext(prev => (
+          prev.some(t => t.id === trackId)
+            ? prev
+            : [
+                ...prev,
+                {
+                  id: trackId,
+                  name: track.name,
+                  artist: track.artist,
+                  image: track.image,
+                },
+              ]
+        ));
       } else {
         setMessage('Failed to queue track.');
       }
@@ -103,6 +191,16 @@ export default function AlbumPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4">
+      {/* Connection status indicator */}
+      <div className="fixed top-4 right-4 z-50">
+        <div className="flex items-center space-x-2 bg-gray-800 px-3 py-2 rounded-lg shadow-lg">
+          <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+          <span className="text-sm text-gray-300">
+            {wsConnected ? 'Connected' : 'Disconnected'}
+          </span>
+        </div>
+      </div>
+
       <div className="max-w-md mx-auto">
          <img
            src={album.image}
