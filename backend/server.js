@@ -6,12 +6,28 @@ const path = require('path');
 const SpotifyWebApi = require('spotify-web-api-node');
 const QRCode = require('qrcode');
 const crypto = require('crypto');
+const os = require('os');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+
+// Get local IP for QR codes
+function getLocalIP() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return 'localhost';
+}
+
+const localIP = getLocalIP();
 
 // OAuth variables
 let codeVerifier = '';
@@ -215,7 +231,7 @@ app.get('/api/queue', async (req, res) => {
 
 app.get('/api/qr/:albumId', async (req, res) => {
   const albumId = req.params.albumId;
-  const url = `http://localhost:3000/album/${albumId}`;
+  const url = `http://${localIP}:3000/album/${albumId}`;
   try {
     const qr = await QRCode.toDataURL(url);
     res.json({ qr });
