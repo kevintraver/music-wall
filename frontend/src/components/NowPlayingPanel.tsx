@@ -82,14 +82,9 @@ function NowPlayingPanelImpl({
                     type="button"
                     aria-label="Next"
                     onClick={() => onAction("next", "/api/playback/next")}
-                    disabled={playbackActionLoading === "next"}
-                    className="bg-gray-700 text-white w-14 h-14 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-gray-700 text-white w-14 h-14 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white flex items-center justify-center"
                   >
-                    {playbackActionLoading === "next" ? (
-                      <span className="material-icons animate-spin text-2xl">autorenew</span>
-                    ) : (
-                      <span className="material-icons text-3xl">skip_next</span>
-                    )}
+                    <span className="material-icons text-3xl">skip_next</span>
                   </button>
                 </div>
               </div>

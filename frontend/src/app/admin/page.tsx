@@ -137,39 +137,87 @@ export default function AdminPage() {
           }
 
           console.log('Admin WS update:', data);
-          if (data.nowPlaying) {
-            console.log('Now playing:', data.nowPlaying.name, 'by', data.nowPlaying.artist);
-          }
-          if (Array.isArray?.(data.queue)) {
-            console.log('Queue updated:', data.queue.map((t: any) => t.name).join(', '));
-          }
-          if (data.albums && Array.isArray(data.albums)) {
-            console.log('Albums updated:', data.albums.length, 'albums');
-            // Only update if the albums actually changed
+          
+          // Handle different message types to avoid cross-contamination
+          const messageType = data.type || 'mixed';
+          
+          // Albums-only updates (e.g., from reordering)
+          if (messageType === 'albums' || (data.albums && Array.isArray(data.albums) && !('nowPlaying' in data) && !('queue' in data))) {
+            console.log('Albums-only update:', data.albums.length, 'albums');
             const albumsChanged = JSON.stringify(data.albums) !== JSON.stringify(albums);
             if (albumsChanged) {
               setAlbums(data.albums);
             }
+            return; // Don't process other fields for albums-only updates
           }
-          // Only update nowPlaying if the payload explicitly includes the field and it's not undefined
-          if ('nowPlaying' in data && data.nowPlaying !== undefined) {
-            setNowPlaying(data.nowPlaying);
-          }
-          // Update isPlaying if provided
-          if (typeof data.isPlaying === 'boolean') {
-            setIsPlaying(data.isPlaying);
-          }
-          // Only update queue if included (even if empty)
-          if ('queue' in data) {
-            const normalized = normalizeQueue(data);
-            setUpNext(normalized);
-          }
-          setPlaybackLoaded(true);
-          setQueueLoaded(true);
+          
+          // Playback-only updates (e.g., from play/pause/skip)
+          if (messageType === 'playback' || ('nowPlaying' in data || 'isPlaying' in data || 'queue' in data)) {
+            if (data.nowPlaying) {
+              console.log('Now playing:', data.nowPlaying.name, 'by', data.nowPlaying.artist);
+            }
+            if (Array.isArray?.(data.queue)) {
+              console.log('Queue updated:', data.queue.map((t: any) => t.name).join(', '));
+            }
+            
+            // Only update nowPlaying if the payload explicitly includes the field
+            if ('nowPlaying' in data) {
+              setNowPlaying(data.nowPlaying);
+            }
+            // Update isPlaying if provided
+            if (typeof data.isPlaying === 'boolean') {
+              setIsPlaying(data.isPlaying);
+            }
+            // Only update queue if included (even if empty)
+            if ('queue' in data) {
+              const normalized = normalizeQueue(data);
+              setUpNext(normalized);
+            }
+            setPlaybackLoaded(true);
+            setQueueLoaded(true);
 
-          // Clear loading states when WebSocket confirms updates
-          setPlaybackActionLoading(null);
-          setPlaybackUpdatePending(false);
+            // Clear loading states when WebSocket confirms updates
+            setPlaybackActionLoading(null);
+            setPlaybackUpdatePending(false);
+            return;
+          }
+          
+          // Mixed updates (fallback for legacy messages that contain everything)
+          if (messageType === 'mixed') {
+            if (data.albums && Array.isArray(data.albums)) {
+              console.log('Albums updated:', data.albums.length, 'albums');
+              const albumsChanged = JSON.stringify(data.albums) !== JSON.stringify(albums);
+              if (albumsChanged) {
+                setAlbums(data.albums);
+              }
+            }
+            if (data.nowPlaying) {
+              console.log('Now playing:', data.nowPlaying.name, 'by', data.nowPlaying.artist);
+            }
+            if (Array.isArray?.(data.queue)) {
+              console.log('Queue updated:', data.queue.map((t: any) => t.name).join(', '));
+            }
+            
+            // Only update nowPlaying if the payload explicitly includes the field
+            if ('nowPlaying' in data) {
+              setNowPlaying(data.nowPlaying);
+            }
+            // Update isPlaying if provided
+            if (typeof data.isPlaying === 'boolean') {
+              setIsPlaying(data.isPlaying);
+            }
+            // Only update queue if included (even if empty)
+            if ('queue' in data) {
+              const normalized = normalizeQueue(data);
+              setUpNext(normalized);
+            }
+            setPlaybackLoaded(true);
+            setQueueLoaded(true);
+
+            // Clear loading states when WebSocket confirms updates
+            setPlaybackActionLoading(null);
+            setPlaybackUpdatePending(false);
+          }
         } catch (error) {
           console.error('Error processing WebSocket message:', error);
         }
@@ -274,14 +322,27 @@ export default function AdminPage() {
   const addAlbum = async (album: Album) => {
     setPendingAddId(album.id);
     try {
-      await fetch(`${apiBase}/api/admin/albums`, {
+      const res = await fetch(`${apiBase}/api/admin/albums`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(album)
       });
-      setAlbums([...albums, album]);
-      // Keep search term/results; just remove the added album from current results
-      setSearchResults(searchResults.filter(a => a.id !== album.id));
+      
+      if (!res.ok) {
+        throw new Error('Failed to add album');
+      }
+
+      // Wait for server response, then update immediately (WebSocket may also update)
+      const newAlbum = await res.json();
+      // Upsert to avoid duplicates if WS or rapid adds race with local state
+      setAlbums(prev => {
+        const exists = prev.some(a => a.id === newAlbum.id);
+        if (exists) return prev.map(a => (a.id === newAlbum.id ? newAlbum : a));
+        return [...prev, newAlbum];
+      });
+      
+      // Keep search term/results; remove the added album using functional update
+      setSearchResults(prev => prev.filter(a => a.id !== album.id));
       setPendingAddId(null);
     } catch (error) {
       console.error('Error adding album:', error);
@@ -290,16 +351,42 @@ export default function AdminPage() {
   };
 
   const removeAlbum = async (id: string) => {
-    await fetch(`${apiBase}/api/admin/albums/${id}`, { method: 'DELETE' });
-    setAlbums(albums.filter(a => a.id !== id));
+    try {
+      const res = await fetch(`${apiBase}/api/admin/albums/${id}`, { method: 'DELETE' });
+      
+      if (!res.ok) {
+        throw new Error('Failed to delete album');
+      }
+
+      // After deletion, reindex positions and trigger reorder to broadcast updates
+      const current = albumsRef.current;
+      const filtered = current.filter(a => a.id !== id);
+      const reindexed = filtered.map((a, index) => ({ ...a, position: index }));
+
+      // Optimistically update UI
+      setAlbums(reindexed);
+
+      // Inform server to persist new order and broadcast to all clients
+      try {
+        await fetch(`${apiBase}/api/admin/albums/reorder`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(reindexed)
+        });
+      } catch (err) {
+        console.error('Error broadcasting reorder after delete:', err);
+      }
+    } catch (error) {
+      console.error('Error removing album:', error);
+    }
   };
 
   const handlePlaybackAction = useCallback(async (action: string, endpoint: string) => {
-    // Don't show loading for pause actions
-    if (action !== 'pause') {
+    // Don't show loading for pause/play actions (immediate feedback)
+    if (action !== 'pause' && action !== 'play') {
       setPlaybackActionLoading(action);
     }
-    if (action !== 'pause') {
+    if (action !== 'pause' && action !== 'play') {
       setPlaybackUpdatePending(true);
     }
 
@@ -313,8 +400,8 @@ export default function AdminPage() {
       if (!res.ok) {
         throw new Error(`Playback ${action} failed`);
       }
-      // Keep loading state until WebSocket confirms the update (except for pause)
-      if (action !== 'pause') {
+      // Keep loading state until WebSocket confirms the update (except for pause/play)
+      if (action !== 'pause' && action !== 'play') {
         setTimeout(() => {
           if (playbackActionLoading === action) {
             setPlaybackActionLoading(null);
@@ -322,7 +409,7 @@ export default function AdminPage() {
           }
         }, 2000); // Fallback timeout
       } else {
-        // For pause, clear immediately since it's typically instant
+        // For pause/play, clear immediately since they're typically instant
         setPlaybackActionLoading(null);
         setPlaybackUpdatePending(false);
       }

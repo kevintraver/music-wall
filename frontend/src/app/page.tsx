@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import Skeleton from "@/components/Skeleton";
 import { normalizeQueue } from "@/lib/queue";
+import ResponsiveAlbumGrid from "@/components/ResponsiveAlbumGrid";
 
 interface Album {
   id: string;
@@ -89,20 +90,48 @@ export default function Home() {
             return;
           }
 
-          if (data.albums && Array.isArray(data.albums)) {
+          // Handle different message types to avoid cross-contamination
+          const messageType = data.type || 'mixed';
+          
+          // Albums-only updates (e.g., from reordering)
+          if (messageType === 'albums' || (data.albums && Array.isArray(data.albums) && !('nowPlaying' in data) && !('queue' in data))) {
             setAlbums(data.albums);
+            return; // Don't process other fields for albums-only updates
           }
-          // Only update nowPlaying if it's explicitly provided and not undefined
-          if ('nowPlaying' in data && data.nowPlaying !== undefined) {
-            setNowPlaying(data.nowPlaying);
+          
+          // Playback-only updates (e.g., from play/pause/skip)
+          if (messageType === 'playback' || ('nowPlaying' in data || 'queue' in data)) {
+            // Only update nowPlaying if the payload explicitly includes the field
+            if ('nowPlaying' in data) {
+              setNowPlaying(data.nowPlaying);
+            }
+            // Only update queue if it's explicitly included in the message
+            if ('queue' in data) {
+              const normalized = normalizeQueue(data);
+              setUpNext(normalized);
+            }
+            setPlaybackLoaded(true);
+            setQueueLoaded(true);
+            return;
           }
-          // Only update queue if it's explicitly included in the message
-          if ('queue' in data) {
-            const normalized = normalizeQueue(data);
-            setUpNext(normalized);
+          
+          // Mixed updates (fallback for legacy messages that contain everything)
+          if (messageType === 'mixed') {
+            if (data.albums && Array.isArray(data.albums)) {
+              setAlbums(data.albums);
+            }
+            // Only update nowPlaying if it's explicitly provided
+            if ('nowPlaying' in data) {
+              setNowPlaying(data.nowPlaying);
+            }
+            // Only update queue if it's explicitly included in the message
+            if ('queue' in data) {
+              const normalized = normalizeQueue(data);
+              setUpNext(normalized);
+            }
+            setPlaybackLoaded(true);
+            setQueueLoaded(true);
           }
-          setPlaybackLoaded(true);
-          setQueueLoaded(true);
         } catch (error) {
           console.error('Error processing WebSocket message:', error);
         }
@@ -174,120 +203,96 @@ export default function Home() {
 
 
   return (
-    <div className="h-screen bg-black text-white px-8 pt-8 pb-6 flex flex-col overflow-hidden">
+    <div className="h-screen bg-black text-white px-16 pt-10 pb-6 flex flex-col overflow-hidden">
       {/* Connection status indicator */}
       <div className="fixed top-4 right-4 z-50">
         <div className={`w-3 h-3 rounded-full shadow-lg ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
       </div>
 
-      {/* Album Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-14 mb-14 mx-6">
-        {albumsLoading
-          ? Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="flex flex-col items-center">
-                <Skeleton className="w-[140px] h-[140px] rounded-lg" />
-                <Skeleton className="w-3/4 h-4 mt-2" />
-                <Skeleton className="w-1/2 h-3 mt-1" />
-                <Skeleton className="w-[70px] h-[70px] mt-2" />
-              </div>
-            ))
-          : [...albums].sort((a, b) => a.position - b.position).map(album => (
-              <div key={album.id} className="flex flex-col items-center">
-                 <img
-                   src={album.image}
-                   alt={album.name}
-                   width={140}
-                   height={140}
-                   className="rounded-lg"
-                 />
-                <p className="text-center mt-2 text-sm">{album.name}</p>
-                <p className="text-center text-xs text-gray-400">{album.artist}</p>
-                {qrs[album.id] ? (
-                  <Image
-                    src={qrs[album.id]}
-                    alt="QR Code"
-                    width={70}
-                    height={70}
-                    className="mt-2"
-                  />
-                ) : (
-                  <Skeleton className="w-[70px] h-[70px] mt-2" />
-                )}
-              </div>
-            ))}
+      {/* Album Grid (auto-fits without bumping bottom) */}
+      <div className="flex-1 min-h-0 overflow-hidden px-0 mb-8">
+        <ResponsiveAlbumGrid albums={albums} qrs={qrs} albumsLoading={albumsLoading} />
       </div>
 
       {/* Now Playing and Up Next Layout */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
+      <div className="shrink-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Now Playing - Left Side (2/3 width) */}
-        <div className="lg:col-span-2 flex flex-col">
-          <div className="bg-gray-800 p-3 rounded-lg flex-1 flex flex-col justify-center">
-            <h2 className="text-lg font-bold mb-2 mt-1 text-center">Now Playing</h2>
-            {playbackLoaded ? (
-              nowPlaying ? (
-                <div className="flex items-center gap-4 justify-center">
-                  {nowPlaying.image ? (
-                    <img
-                      src={nowPlaying.image}
-                      alt={nowPlaying.name}
-                      width={110}
-                      height={110}
-                      className="rounded-lg shadow-lg"
-                    />
-                  ) : (
-                    <Skeleton className="w-[110px] h-[110px] rounded-lg" />
-                  )}
-                  <div className="flex-1 text-center">
-                    <p className="text-base font-bold mb-1">{nowPlaying.name}</p>
-                    <p className="text-sm text-gray-300">{nowPlaying.artist}</p>
-                  </div>
+        <div className="lg:col-span-2 bg-gray-800 rounded-2xl p-5 flex flex-col">
+          <h2 className="text-lg font-bold mb-3 text-gray-300 tracking-wider text-center">Now Playing</h2>
+          {playbackLoaded ? (
+            nowPlaying ? (
+              <div className="flex flex-col items-center flex-grow text-center min-h-[clamp(12rem,24vh,16rem)]">
+                {nowPlaying.image ? (
+                  <img
+                    src={nowPlaying.image}
+                    alt={nowPlaying.name}
+                    className="w-[clamp(6rem,16vh,12rem)] h-[clamp(6rem,16vh,12rem)] rounded-lg shadow-lg object-cover"
+                  />
+                ) : (
+                  <Skeleton className="w-[clamp(6rem,16vh,12rem)] h-[clamp(6rem,16vh,12rem)] rounded-lg" />
+                )}
+                <div className="mt-6">
+                  <h3 className="text-2xl font-bold truncate max-w-[90vw] lg:max-w-[60vw]">
+                    {nowPlaying.name}
+                  </h3>
+                  <p className="text-sm text-gray-400 mt-1">{nowPlaying.artist}</p>
                 </div>
-              ) : (
-                <div className="py-4">
-                  <p className="text-sm text-gray-300">No track playing</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center flex-grow text-center justify-center min-h-[clamp(12rem,24vh,16rem)]">
+                <Skeleton className="w-[clamp(6rem,16vh,12rem)] h-[clamp(6rem,16vh,12rem)] rounded-lg" />
+                <div className="mt-6 w-[min(16rem,60vw)]">
+                  <Skeleton className="h-7 w-3/4 mx-auto mb-2" />
+                  <Skeleton className="h-4 w-1/2 mx-auto" />
                 </div>
-              )
-              ) : (
-                <div className="flex items-center gap-4 justify-center">
-                  <Skeleton className="w-[110px] h-[110px] rounded-lg" />
-                  <div className="flex-1 text-center">
-                    <Skeleton className="w-28 h-3 mb-1" />
-                    <Skeleton className="w-20 h-3" />
-                  </div>
-                </div>
-              )}
-          </div>
+              </div>
+            )
+          ) : (
+            <div className="flex flex-col items-center flex-grow text-center justify-center min-h-[clamp(12rem,24vh,16rem)]">
+              <Skeleton className="w-[clamp(6rem,16vh,12rem)] h-[clamp(6rem,16vh,12rem)] rounded-lg" />
+              <div className="mt-6 w-[min(16rem,60vw)]">
+                <Skeleton className="h-7 w-3/4 mx-auto mb-2" />
+                <Skeleton className="h-4 w-1/2 mx-auto" />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Up Next - Right Side (1/3 width) */}
-        <div className="lg:col-span-1 flex flex-col">
-          <div className="bg-gray-800 p-3 rounded-lg flex-1 flex flex-col">
-            <h2 className="text-lg font-bold mb-2 mt-1 text-center">Up Next</h2>
-            <div className="flex-1 overflow-hidden">
-              {queueLoaded ? (
-                upNext.length > 0 ? (
-                  <div className="flex items-center justify-center flex-1">
-                    {upNext.length > 0 ? (
-                      <div className="text-center">
-                        <p className="font-medium text-sm mb-1">{upNext[0].name}</p>
-                        <p className="text-xs text-gray-400">{upNext[0].artist}</p>
-                      </div>
-                    ) : (
-                      <p className="text-gray-300 text-sm">Queue is empty</p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-gray-300 text-center py-3 text-sm">Queue is empty</p>
-                )
-              ) : (
-                <div className="flex items-center justify-center flex-1">
-                  <div className="text-center">
-                    <Skeleton className="w-28 h-3 mb-1 mx-auto" />
-                    <Skeleton className="w-20 h-3 mx-auto" />
+        <div className="bg-gray-800 rounded-2xl p-5 flex flex-col">
+          <h2 className="text-lg font-bold mb-3 text-gray-300 tracking-wider text-center">Up Next</h2>
+          <div className="flex-grow flex flex-col justify-center">
+            {queueLoaded ? (
+              upNext.length > 0 ? (
+                <div className="flex items-center space-x-3 p-2 rounded-lg h-20">
+                  {upNext[0]?.image ? (
+                    <img
+                      src={upNext[0].image!}
+                      alt={`Album art for the next song in the queue`}
+                      className="w-20 h-20 rounded-md object-cover"
+                    />
+                  ) : (
+                    <Skeleton className="w-20 h-20 rounded-md" />
+                  )}
+                  <div className="flex-grow min-w-0">
+                    <p className="font-semibold text-base truncate">{upNext[0].name}</p>
+                    <p className="text-sm text-gray-400 truncate">{upNext[0].artist}</p>
                   </div>
                 </div>
-              )}
-            </div>
+              ) : (
+                <div className="flex items-center justify-center h-20 rounded-lg">
+                  <p className="text-gray-300 text-sm">Queue is empty</p>
+                </div>
+              )
+            ) : (
+              <div className="flex items-center space-x-3 p-2 rounded-lg h-20">
+                <Skeleton className="w-20 h-20 rounded-md" />
+                <div className="flex-grow">
+                  <Skeleton className="h-5 w-28 mb-2" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 
 interface Album {
   id: string;
@@ -21,6 +21,13 @@ export default function AlbumWall({ albums, albumsLoading, onReorder, onRemove }
   const [draggedAlbum, setDraggedAlbum] = useState<Album | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  // Ensure unique albums by id to avoid React key warnings when duplicates slip in
+  const uniqueAlbums = useMemo(() => {
+    const map = new Map<string, Album>();
+    for (const a of albums) map.set(a.id, a);
+    return Array.from(map.values());
+  }, [albums]);
 
   const handleDragStart = (e: React.DragEvent, album: Album, index: number) => {
     e.stopPropagation();
@@ -106,7 +113,7 @@ export default function AlbumWall({ albums, albumsLoading, onReorder, onRemove }
           </div>
         ))
       ) : (
-        [...albums]
+        [...uniqueAlbums]
           .sort((a, b) => a.position - b.position)
           .map((album, index) => {
             const isDraggedItem = draggedAlbum?.id === album.id;
@@ -119,7 +126,7 @@ export default function AlbumWall({ albums, albumsLoading, onReorder, onRemove }
 
             return (
               <div
-                key={album.id}
+                key={album.id ? `${album.id}-${album.position ?? index}` : `${album.name}-${album.artist}-${index}`}
                 draggable={!isDraggedItem}
                 onDragStart={(e) => handleDragStart(e, album, index)}
                 onDragOver={(e) => handleDragOver(e, index)}
@@ -167,4 +174,3 @@ export default function AlbumWall({ albums, albumsLoading, onReorder, onRemove }
     </div>
   );
 }
-
