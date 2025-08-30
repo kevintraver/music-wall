@@ -41,6 +41,8 @@ export default function AdminPage() {
   const [draggedAlbum, setDraggedAlbum] = useState<Album | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [lastAlbumUpdate, setLastAlbumUpdate] = useState<number>(0);
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
   const [queueLoaded, setQueueLoaded] = useState(false);
   const [playbackActionLoading, setPlaybackActionLoading] = useState<string | null>(null);
@@ -143,7 +145,17 @@ export default function AdminPage() {
           }
           if (data.albums && Array.isArray(data.albums)) {
             console.log('Albums updated:', data.albums.length, 'albums');
-            setAlbums(data.albums);
+            const now = Date.now();
+            // Don't update albums if we're currently dragging to prevent conflicts
+            // Also debounce rapid updates (minimum 500ms between updates)
+            if (!isDragging && (now - lastAlbumUpdate) > 500) {
+              // Only update if the albums actually changed
+              const albumsChanged = JSON.stringify(data.albums) !== JSON.stringify(albums);
+              if (albumsChanged) {
+                setAlbums(data.albums);
+                setLastAlbumUpdate(now);
+              }
+            }
           }
           setNowPlaying(data.nowPlaying);
           // Fallback: if server doesn't include isPlaying, keep previous value
@@ -311,6 +323,7 @@ export default function AdminPage() {
     e.stopPropagation();
     setDraggedAlbum(album);
     setDraggedIndex(index);
+    setIsDragging(true);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', album.id);
   };
@@ -377,12 +390,14 @@ export default function AdminPage() {
     setDraggedAlbum(null);
     setDraggedIndex(null);
     setDragOverIndex(null);
+    setIsDragging(false);
   };
 
   const handleDragEnd = () => {
     setDraggedAlbum(null);
     setDraggedIndex(null);
     setDragOverIndex(null);
+    setIsDragging(false);
   };
 
   // Global drag event handlers to prevent interference with other UI elements
@@ -404,6 +419,7 @@ export default function AdminPage() {
       setDraggedAlbum(null);
       setDraggedIndex(null);
       setDragOverIndex(null);
+      setIsDragging(false);
     };
 
     if (draggedAlbum) {
