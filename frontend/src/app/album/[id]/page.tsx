@@ -30,6 +30,7 @@ export default function AlbumPage() {
   const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
   const [queuedTrack, setQueuedTrack] = useState<string>('');
   const [upNext, setUpNext] = useState<{ id: string }[]>([]);
+  const [pendingTrackId, setPendingTrackId] = useState<string | null>(null);
   const [albumLoading, setAlbumLoading] = useState(true);
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
 
@@ -53,35 +54,31 @@ export default function AlbumPage() {
     return () => ws.close();
   }, []);
 
-  const queueTrack = (trackId: string) => {
-    console.log('Queue button clicked for track:', trackId);
-    console.log('API base:', apiBase);
+  const queueTrack = async (trackId: string) => {
+    if (pendingTrackId === trackId) return;
     const track = album?.tracks.find(t => t.id === trackId);
-    if (!track) {
-      console.error('Track not found:', trackId);
-      return;
-    }
-    console.log('Found track:', track.name);
-    fetch(`${apiBase}/api/queue`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ trackId })
-    }).then(response => {
-      console.log('Queue response status:', response.status);
+    if (!track) return;
+    setPendingTrackId(trackId);
+    try {
+      const response = await fetch(`${apiBase}/api/queue`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trackId })
+      });
       if (response.ok) {
         setQueuedTrack(track.name);
         setMessage('Track queued successfully!');
-        setTimeout(() => setMessage(''), 3000);
+        // Optimistically reflect queued state until WS updates
+        setUpNext(prev => (prev.some(t => t.id === trackId) ? prev : [...prev, { id: trackId }]));
       } else {
-        console.error('Queue failed with status:', response.status);
         setMessage('Failed to queue track.');
-        setTimeout(() => setMessage(''), 3000);
       }
-    }).catch(error => {
-      console.error('Queue fetch error:', error);
+    } catch (error) {
       setMessage('Failed to queue track.');
+    } finally {
+      setPendingTrackId(null);
       setTimeout(() => setMessage(''), 3000);
-    });
+    }
   };
 
   if (albumLoading || !album) {
@@ -143,6 +140,7 @@ export default function AlbumPage() {
           <ul className="space-y-2">
             {album.tracks.map(track => {
               const isQueued = upNext.some(t => t.id === track.id);
+              const isPending = pendingTrackId === track.id;
               return (
                 <li key={track.id} className="flex justify-between items-center bg-gray-800 p-3 rounded">
                   <span>{track.name}</span>
@@ -151,9 +149,10 @@ export default function AlbumPage() {
                   ) : (
                     <button
                       onClick={() => queueTrack(track.id)}
-                      className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded"
+                      disabled={isPending}
+                      className={`${isPending ? 'bg-gray-600 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} px-4 py-2 rounded`}
                     >
-                      Queue
+                      {isPending ? 'Queuing…' : 'Queue'}
                     </button>
                   )}
                 </li>
