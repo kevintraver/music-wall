@@ -241,14 +241,18 @@ app.get('/api/album/:id', async (req, res) => {
 });
 
 app.post('/api/queue', async (req, res) => {
+  console.log('Queue request received for track:', req.body.trackId);
   if (!accessToken) {
+    console.log('No access token');
     return res.status(401).json({ error: 'Admin not authenticated with Spotify' });
   }
   const { trackId } = req.body;
   try {
     // Get available devices
     const devices = await spotifyApi.getMyDevices();
+    console.log('Devices found:', devices.body.devices.length);
     const activeDevice = devices.body.devices.find(d => d.is_active);
+    console.log('Active device:', activeDevice ? activeDevice.name : 'None');
 
     if (!activeDevice) {
       return res.status(400).json({ error: 'No active Spotify device found. Make sure Spotify app is running and logged in.' });
@@ -256,6 +260,7 @@ app.post('/api/queue', async (req, res) => {
 
     // Add track to queue
     await spotifyApi.addToQueue(`spotify:track:${trackId}`, { device_id: activeDevice.id });
+    console.log('Track added to queue successfully');
     res.json({ success: true });
   } catch (error) {
     console.error('Error adding to queue:', error);

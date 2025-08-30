@@ -45,17 +45,31 @@ export default function AlbumPage() {
   }, []);
 
   const queueTrack = (trackId: string) => {
+    console.log('Queue button clicked for track:', trackId);
+    console.log('API base:', apiBase);
     const track = album?.tracks.find(t => t.id === trackId);
-    if (!track) return;
+    if (!track) {
+      console.error('Track not found:', trackId);
+      return;
+    }
+    console.log('Found track:', track.name);
     fetch(`${apiBase}/api/queue`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ trackId })
-    }).then(() => {
-      setQueuedTrack(track.name);
-      setMessage('Track queued successfully!');
-      setTimeout(() => setMessage(''), 3000);
-    }).catch(() => {
+    }).then(response => {
+      console.log('Queue response status:', response.status);
+      if (response.ok) {
+        setQueuedTrack(track.name);
+        setMessage('Track queued successfully!');
+        setTimeout(() => setMessage(''), 3000);
+      } else {
+        console.error('Queue failed with status:', response.status);
+        setMessage('Failed to queue track.');
+        setTimeout(() => setMessage(''), 3000);
+      }
+    }).catch(error => {
+      console.error('Queue fetch error:', error);
       setMessage('Failed to queue track.');
       setTimeout(() => setMessage(''), 3000);
     });
