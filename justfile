@@ -27,6 +27,17 @@ clean:
     rm -rf backend/node_modules
     rm -rf frontend/node_modules
 
+# Stop all processes
+stop:
+    -pkill -f "node server.js"
+    -pkill -f "next dev"
+    -pkill spotifyd
+
+# Restart all processes
+restart:
+    just stop
+    just start-all
+
 # Full setup (install + start)
 setup:
     just install
