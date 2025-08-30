@@ -219,22 +219,22 @@ export default function Home() {
             <h2 className="text-lg font-bold mb-2 mt-1 text-center">Now Playing</h2>
             {playbackLoaded ? (
               nowPlaying ? (
-                <div className="flex items-center gap-6 justify-center">
-                  <div className="flex-1 text-center ml-8">
-                    <p className="text-base font-bold mb-1">{nowPlaying.name}</p>
-                    <p className="text-sm text-gray-300">{nowPlaying.artist}</p>
-                  </div>
+                <div className="flex items-center gap-4 justify-center">
                   {nowPlaying.image ? (
                     <img
                       src={nowPlaying.image}
                       alt={nowPlaying.name}
-                      width={120}
-                      height={120}
+                      width={110}
+                      height={110}
                       className="rounded-lg shadow-lg"
                     />
                   ) : (
-                    <Skeleton className="w-[120px] h-[120px] rounded-lg" />
+                    <Skeleton className="w-[110px] h-[110px] rounded-lg" />
                   )}
+                  <div className="flex-1 text-center">
+                    <p className="text-base font-bold mb-1">{nowPlaying.name}</p>
+                    <p className="text-sm text-gray-300">{nowPlaying.artist}</p>
+                  </div>
                 </div>
               ) : (
                 <div className="py-4">
@@ -242,13 +242,13 @@ export default function Home() {
                 </div>
               )
               ) : (
-                <div className="flex items-center gap-6 justify-center">
-                  <div className="flex-1 text-center ml-8">
+                <div className="flex items-center gap-4 justify-center">
+                  <Skeleton className="w-[110px] h-[110px] rounded-lg" />
+                  <div className="flex-1 text-center">
                     <Skeleton className="w-28 h-3 mb-1" />
                     <Skeleton className="w-20 h-3" />
                   </div>
-                   <Skeleton className="w-[120px] h-[120px] rounded-lg" />
-                 </div>
+                </div>
               )}
           </div>
         </div>
