@@ -118,25 +118,35 @@ export default function AdminPage() {
       };
 
       ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'pong') return; // Ignore pong responses
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'pong') return; // Ignore pong responses
 
-        console.log('Admin WS update:', data);
-        if (data.nowPlaying) {
-          console.log('Now playing:', data.nowPlaying.name, 'by', data.nowPlaying.artist);
+          // Validate message structure
+          if (typeof data !== 'object' || data === null) {
+            console.warn('Invalid WebSocket message format');
+            return;
+          }
+
+          console.log('Admin WS update:', data);
+          if (data.nowPlaying) {
+            console.log('Now playing:', data.nowPlaying.name, 'by', data.nowPlaying.artist);
+          }
+          if (data.queue && data.queue.length > 0) {
+            console.log('Queue updated:', data.queue.map((t: any) => t.name).join(', '));
+          }
+          setNowPlaying(data.nowPlaying);
+          // Fallback: if server doesn't include isPlaying, keep previous value
+          if (typeof data.isPlaying === 'boolean') {
+            setIsPlaying(data.isPlaying);
+          }
+          const normalized = normalizeQueue(data);
+          if (normalized.length) setUpNext(normalized);
+          setPlaybackLoaded(true);
+          setQueueLoaded(true);
+        } catch (error) {
+          console.error('Error processing WebSocket message:', error);
         }
-        if (data.queue && data.queue.length > 0) {
-          console.log('Queue updated:', data.queue.map((t: any) => t.name).join(', '));
-        }
-        setNowPlaying(data.nowPlaying);
-        // Fallback: if server doesn't include isPlaying, keep previous value
-        if (typeof data.isPlaying === 'boolean') {
-          setIsPlaying(data.isPlaying);
-        }
-        const normalized = normalizeQueue(data);
-        if (normalized.length) setUpNext(normalized);
-        setPlaybackLoaded(true);
-        setQueueLoaded(true);
       };
 
       ws.onclose = () => {
@@ -469,7 +479,7 @@ export default function AdminPage() {
             {/* Wall (left) + Search (right) */}
             <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Wall left: 2 columns */}
-              <div className="lg:col-span-2 bg-white pt-8 px-6 pb-6 rounded-xl shadow-md">
+              <div className="lg:col-span-2 bg-white pt-12 px-6 pb-6 rounded-xl shadow-md">
                 <h2 className="text-2xl font-semibold text-gray-800 mb-6">Current Wall</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-5 gap-6">
                   {albumsLoading ? (
