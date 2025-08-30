@@ -31,7 +31,7 @@ export default function Home() {
   const [albumsLoading, setAlbumsLoading] = useState(true);
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
   const [queueLoaded, setQueueLoaded] = useState(false);
-  const [wsConnected, setWsConnected] = useState(false);
+
 
   useEffect(() => {
     const base = `http://${window.location.hostname}:3001`;
@@ -68,7 +68,6 @@ export default function Home() {
 
       ws.onopen = () => {
         console.log('WebSocket connected');
-        setWsConnected(true);
         reconnectAttempts = 0;
 
         // Start heartbeat
@@ -204,10 +203,7 @@ export default function Home() {
 
   return (
     <div className="h-screen bg-black text-white px-8 lg:px-10 pt-10 pb-6 flex flex-col overflow-hidden">
-      {/* Connection status indicator */}
-      <div className="fixed top-4 right-4 z-50">
-        <div className={`w-3 h-3 rounded-full shadow-lg ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-      </div>
+
 
       {/* Album Grid (auto-fits without bumping bottom) */}
       <div className="flex-1 min-h-0 overflow-hidden px-0 mb-8">

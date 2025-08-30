@@ -32,17 +32,74 @@ export default function AlbumPage() {
   const [upNext, setUpNext] = useState<import("@/lib/queue").MinimalTrack[]>([]);
   const [pendingTrackId, setPendingTrackId] = useState<string | null>(null);
   const [albumLoading, setAlbumLoading] = useState(true);
-  const [wsConnected, setWsConnected] = useState(false);
+
 
   useEffect(() => {
     const base = `http://${window.location.hostname}:3001`;
     setApiBase(base);
-    fetch(`${base}/api/album/${albumId}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Failed to load album ${albumId}`);
-        return res.json();
-      })
+    const fetchOnce = async (id: string) => {
+      const res = await fetch(`${base}/api/album/${id}`);
+      if (!res.ok) {
+        let body = '';
+        try { body = await res.text(); } catch {}
+        try { console.error('Album fetch failed', { id, status: res.status, statusText: res.statusText, body }); } catch {}
+        return null;
+      }
+      try { return await res.json(); } catch { return null; }
+    };
+
+    const makeVariants = (id: string): string[] => {
+      const variants = new Set<string>();
+      variants.add(id);
+      variants.add(id.replace(/I/g, 'l'));
+      variants.add(id.replace(/l/g, 'I'));
+      variants.add(id.replace(/O/g, '0'));
+      variants.add(id.replace(/0/g, 'O'));
+      variants.add(id.toLowerCase());
+      variants.add(id.toUpperCase());
+      return [...variants].filter(Boolean);
+    };
+
+    const tryFetchWithHeuristics = async () => {
+      // 1) Try exact id
+      let data = await fetchOnce(albumId);
+      if (!data) {
+        // 2) Heuristic fallbacks for potential QR casing/character confusion
+        const variants = makeVariants(albumId);
+        for (const v of variants) {
+          if (v === albumId) continue;
+          data = await fetchOnce(v);
+          if (data) {
+            try { console.warn('Album resolved via fallback id variant', { original: albumId, used: v }); } catch {}
+            break;
+          }
+        }
+      }
+      if (!data) {
+        // 3) As a last resort, fetch album list and try to match by variants
+        try {
+          const res = await fetch(`${base}/api/albums`);
+          if (res.ok) {
+            const list = await res.json();
+            const candidates = makeVariants(albumId);
+            const found = (list || []).find((a: any) => candidates.includes(a?.id));
+            if (found?.id) {
+              const retry = await fetchOnce(found.id);
+              if (retry) {
+                try { console.warn('Album resolved via /api/albums lookup', { original: albumId, used: found.id }); } catch {}
+                data = retry;
+              }
+            }
+          }
+        } catch {}
+      }
+      return data;
+    };
+
+    tryFetchWithHeuristics()
       .then((data) => {
+        if (!data) throw new Error(`Failed to load album ${albumId}`);
+        try { console.debug('Album API payload received', data); } catch {}
         // Normalize possible backend shapes for album + tracks
         const root = data?.album ? data.album : data;
         const pickList = (d: any): any[] | null => {
@@ -73,6 +130,9 @@ export default function AlbumPage() {
           position: root?.position ?? 0,
           tracks,
         };
+        if (!tracks.length) {
+          try { console.warn('No tracks derived from album payload for id', albumId); } catch {}
+        }
         setAlbum(sanitized);
       })
       .catch((err) => {
@@ -97,7 +157,6 @@ export default function AlbumPage() {
 
       ws.onopen = () => {
         console.log('Album WebSocket connected');
-        setWsConnected(true);
         reconnectAttempts = 0;
 
         // Start heartbeat
@@ -127,7 +186,6 @@ export default function AlbumPage() {
 
       ws.onclose = () => {
         console.log('Album WebSocket disconnected, attempting reconnection...');
-        setWsConnected(false);
         if (heartbeatInterval) {
           clearInterval(heartbeatInterval);
           heartbeatInterval = null;
@@ -226,15 +284,7 @@ export default function AlbumPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4">
-      {/* Connection status indicator */}
-      <div className="fixed top-4 right-4 z-50">
-        <div className="flex items-center space-x-2 bg-gray-800 px-3 py-2 rounded-lg shadow-lg">
-          <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-          <span className="text-sm text-gray-300">
-            {wsConnected ? 'Connected' : 'Disconnected'}
-          </span>
-        </div>
-      </div>
+
 
       <div className="max-w-md mx-auto">
          <img
