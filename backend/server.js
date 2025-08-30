@@ -431,3 +431,23 @@ app.delete('/api/admin/albums/:id', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Backend running on port ${PORT}`);
 });
+app.post('/api/admin/albums/reorder', (req, res) => {
+  const reorderedAlbums = req.body;
+  if (!Array.isArray(reorderedAlbums)) {
+    return res.status(400).json({ error: 'Invalid request body' });
+  }
+
+  // Update the albums array with new positions
+  albums = reorderedAlbums.map((album, index) => ({
+    ...album,
+    position: index
+  }));
+
+  // Save to JSON file
+  fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+
+  // Send WebSocket update to all clients
+  sendUpdate({ albums });
+
+  res.json({ success: true });
+});

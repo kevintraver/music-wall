@@ -3,18 +3,49 @@
     "id": "5Ab6nQ9lH6UsBy3IenRuly",
     "name": "Downward",
     "artist": "Rezz",
-    "image": "https://i.scdn.co/image/ab67616d0000b2733b790e5c51a74a48cd9ef163"
-  },
-  {
-    "id": "5ZZaeoU9S11FSKSYYxn0US",
-    "name": "Glass Veins",
-    "artist": "Rezz",
-    "image": "https://i.scdn.co/image/ab67616d0000b273117f076d1a653d486571f350"
+    "image": "https://i.scdn.co/image/ab67616d0000b2733b790e5c51a74a48cd9ef163",
+    "position": 0
   },
   {
     "id": "03gbq51oxT0TqEBZ1JSWYe",
     "name": "Apache",
     "artist": "BVRNOUT",
-    "image": "https://i.scdn.co/image/ab67616d0000b27332847045828acb4ce3f25369"
+    "image": "https://i.scdn.co/image/ab67616d0000b27332847045828acb4ce3f25369",
+    "position": 1
+  },
+  {
+    "id": "3BHHdMvR8ruwzVdIYH3MnY",
+    "name": "BACH TO THE FUTURE",
+    "artist": "Levi.Sct",
+    "image": "https://i.scdn.co/image/ab67616d0000b273a0403cdcd38877a89930b28a",
+    "position": 2
+  },
+  {
+    "id": "1sXUPeXG3bo3norKvF2nJx",
+    "name": "Aquatic",
+    "artist": "Nora En Pure",
+    "image": "https://i.scdn.co/image/ab67616d0000b273f05ab30b15951d17070e73d5",
+    "position": 3
+  },
+  {
+    "id": "5K48snMYyCGJ4xsG7O8G8k",
+    "name": "REX",
+    "artist": "Lazerpunk",
+    "image": "https://i.scdn.co/image/ab67616d0000b2735847315f5d6884917fb6caae",
+    "position": 4
+  },
+  {
+    "id": "3ix5u88koqhbzehH2cc7qL",
+    "name": "REX",
+    "artist": "Camellia",
+    "image": "https://i.scdn.co/image/ab67616d0000b273398d2c98cf5d1982b8dba24a",
+    "position": 5
+  },
+  {
+    "id": "0NJRPgK15C8qoLuQv1hChv",
+    "name": "Mother Earth's Plantasia",
+    "artist": "Mort Garson",
+    "image": "https://i.scdn.co/image/ab67616d0000b27319112975fac887f75c0b095b",
+    "position": 6
   }
 ]
