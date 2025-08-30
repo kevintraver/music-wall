@@ -159,10 +159,7 @@ export default function AlbumWall({ albums, albumsLoading, onReorder, onRemove }
                 >
                   <span className="material-icons text-base">delete</span>
                 </button>
-                <div className="absolute bottom-2 left-2 right-2 bg-black/70 text-white p-2 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  <p className="font-semibold text-sm leading-tight truncate">{album.name}</p>
-                  <p className="text-xs text-gray-300 truncate">{album.artist}</p>
-                </div>
+                {/* Removed hover popover with album name/artist to avoid duplicate tooltip in admin */}
                 <div className="mt-3 text-center">
                   <p className="font-semibold text-gray-800 text-base leading-tight">{album.name}</p>
                   <p className="text-sm text-gray-500 mt-1">{album.artist}</p>

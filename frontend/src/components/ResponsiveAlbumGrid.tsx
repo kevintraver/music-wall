@@ -107,15 +107,15 @@ export default function ResponsiveAlbumGrid({ albums, qrs, albumsLoading }: Prop
   useEffect(() => {
     const { width, height } = containerSize;
     const computed = computeLayout(sorted.length, width, height, {
-      gap: 16,
+      gap: 20,
       minSize: 80,
       textConst: 56,
-      qrRatio: 0.5,
+      qrRatio: 0.4,
     });
     setLayout(computed);
   }, [containerSize, sorted.length]);
 
-  const gap = 16;
+  const gap = 20;
   const gridStyle: React.CSSProperties = {
     display: "grid",
     gridTemplateColumns: `repeat(${layout.cols}, ${layout.img}px)`,
@@ -149,8 +149,8 @@ export default function ResponsiveAlbumGrid({ albums, qrs, albumsLoading }: Prop
                 className="rounded-lg object-cover"
                 style={{ width: layout.img, height: layout.img }}
               />
-              <p className="text-center mt-2 text-sm truncate" style={{ maxWidth: layout.img }}>{album.name}</p>
-              <p className="text-center text-xs text-gray-400 truncate" style={{ maxWidth: layout.img }}>{album.artist}</p>
+              <p className="text-center mt-2 text-base truncate" style={{ maxWidth: layout.img }}>{album.name}</p>
+              <p className="text-center text-sm text-gray-400 truncate" style={{ maxWidth: layout.img }}>{album.artist}</p>
               {qrs[album.id] ? (
                 <Image
                   src={qrs[album.id]}

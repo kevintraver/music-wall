@@ -432,6 +432,12 @@ app.post('/api/admin/albums', (req, res) => {
     albums.push(newAlbum);
     // Save to file
     fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+    // Broadcast albums update so clients refresh immediately
+    try {
+      sendUpdate({ type: 'albums', albums });
+    } catch (e) {
+      console.error('WS broadcast failed after add:', e);
+    }
   }
   res.json({ success: true });
 });
@@ -440,6 +446,12 @@ app.delete('/api/admin/albums/:id', (req, res) => {
   const id = req.params.id;
   albums = albums.filter(a => a.id !== id);
   fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+  // Broadcast albums update after delete
+  try {
+    sendUpdate({ type: 'albums', albums });
+  } catch (e) {
+    console.error('WS broadcast failed after delete:', e);
+  }
   res.json({ success: true });
 });
 
@@ -462,7 +474,7 @@ app.post('/api/admin/albums/reorder', (req, res) => {
   fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
 
   // Send WebSocket update to all clients
-  sendUpdate({ albums });
+  sendUpdate({ type: 'albums', albums });
 
   res.json({ success: true });
 });

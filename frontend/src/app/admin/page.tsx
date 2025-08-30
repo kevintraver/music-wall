@@ -281,10 +281,9 @@ export default function AdminPage() {
     try {
       const res = await fetch(`${apiBase}/api/search?q=${encodeURIComponent(q)}`, { signal: controller.signal });
       if (!res.ok) throw new Error('Search failed');
-      const results: Album[] = await res.json();
-      // Use latest albums via ref so adding an album doesn't retrigger search
-      const currentAlbums = albumsRef.current;
-      setSearchResults(results.filter(album => !currentAlbums.some(a => a.id === album.id)));
+       const results: Album[] = await res.json();
+       // Include all results, even those already in the wall
+       setSearchResults(results);
     } catch (e: any) {
       if (e?.name !== 'AbortError') {
         setSearchResults([]);
@@ -322,30 +321,43 @@ export default function AdminPage() {
   const addAlbum = async (album: Album) => {
     setPendingAddId(album.id);
     try {
+      // Get canonical album details from backend (ensures image + name/artist consistency)
+      const canonicalRes = await fetch(`${apiBase}/api/album/${album.id}`);
+      const canonical = canonicalRes.ok ? await canonicalRes.json() : album;
+
+      // Backend currently returns { success: true } from POST; it does not assign position.
+      // Assign a position on the client and send it.
+      const payload = { ...canonical, position: albumsRef.current.length } as Album;
+
       const res = await fetch(`${apiBase}/api/admin/albums`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(album)
+        body: JSON.stringify(payload)
       });
-      
-      if (!res.ok) {
-        throw new Error('Failed to add album');
+
+      if (!res.ok) throw new Error('Failed to add album');
+
+      // Refresh albums from server to reflect persisted data and any enrichment
+      try {
+        const refreshed = await fetch(`${apiBase}/api/albums`).then(r => r.json());
+        setAlbums(refreshed);
+        albumsRef.current = refreshed;
+      } catch {
+        // Fall back to optimistic update if refresh fails
+        setAlbums(prev => {
+          const exists = prev.some(a => a.id === payload.id);
+          const next = exists ? prev.map(a => (a.id === payload.id ? payload : a)) : [...prev, payload];
+          albumsRef.current = next;
+          return next;
+        });
       }
 
-      // Wait for server response, then update immediately (WebSocket may also update)
-      const newAlbum = await res.json();
-      // Upsert to avoid duplicates if WS or rapid adds race with local state
-      setAlbums(prev => {
-        const exists = prev.some(a => a.id === newAlbum.id);
-        if (exists) return prev.map(a => (a.id === newAlbum.id ? newAlbum : a));
-        return [...prev, newAlbum];
-      });
-      
-      // Keep search term/results; remove the added album using functional update
+      // Remove added album from search results but keep query
       setSearchResults(prev => prev.filter(a => a.id !== album.id));
-      setPendingAddId(null);
     } catch (error) {
       console.error('Error adding album:', error);
+    } finally {
+      // Clear pending state; no need to reorder on add — appended at end
       setPendingAddId(null);
     }
   };
@@ -649,26 +661,35 @@ export default function AdminPage() {
                         {!isSearching && !isDebouncing && searchResults.length === 0 && searchQuery.trim() && (
                           <li className="text-gray-500 px-3">No results</li>
                         )}
-                        {!isSearching && searchResults.map(album => (
-                          <li key={album.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
-                            <div className="flex items-center space-x-4">
-                              <img alt={`${album.name} album cover`} className="w-12 h-12 rounded-md object-cover" src={album.image} />
-                              <div>
-                                <p className="font-medium text-gray-900">{album.name}</p>
-                                <p className="text-sm text-gray-500">{album.artist}</p>
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              aria-label={`Add ${album.name}`}
-                              onClick={() => { addAlbum(album); }}
-                              disabled={pendingAddId === album.id}
-                              className={`text-green-500 hover:text-green-700 ${pendingAddId === album.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                              <span className="material-icons">add_circle_outline</span>
-                            </button>
-                          </li>
-                        ))}
+                         {!isSearching && searchResults.map(album => {
+                           const isAlreadyInWall = albums.some(a => a.id === album.id);
+                           return (
+                             <li key={album.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                               <div className="flex items-center space-x-4">
+                                 <img alt={`${album.name} album cover`} className="w-12 h-12 rounded-md object-cover" src={album.image} />
+                                 <div>
+                                   <p className="font-medium text-gray-900">{album.name}</p>
+                                   <p className="text-sm text-gray-500">{album.artist}</p>
+                                 </div>
+                               </div>
+                               <button
+                                 type="button"
+                                 aria-label={isAlreadyInWall ? `${album.name} already in wall` : `Add ${album.name}`}
+                                 onClick={() => { if (!isAlreadyInWall) addAlbum(album); }}
+                                 disabled={isAlreadyInWall || pendingAddId === album.id}
+                                 className={`${
+                                   isAlreadyInWall
+                                     ? 'text-gray-400 cursor-not-allowed'
+                                     : pendingAddId === album.id
+                                       ? 'text-green-500 opacity-50 cursor-not-allowed'
+                                       : 'text-green-500 hover:text-green-700'
+                                 }`}
+                               >
+                                 <span className="material-icons">{isAlreadyInWall ? 'check_circle' : 'add_circle_outline'}</span>
+                               </button>
+                             </li>
+                           );
+                         })}
                       </ul>
                     </>
                   )}
