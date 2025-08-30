@@ -255,47 +255,70 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Search & Add Albums full-width */}
-            <div className="mt-8 bg-white p-6 rounded-xl shadow-md lg:col-span-3">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Search & Add Albums</h2>
-              <div className="space-y-4">
-                <div className="relative">
-                  <span className="material-icons absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">search</span>
-                  <input
-                    type="search"
-                    inputMode="search"
-                    aria-label="Search albums"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    placeholder="Search albums..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        // immediate search on Enter
-                        // eslint-disable-next-line @typescript-eslint/no-floating-promises
-                        performSearch(searchQuery);
-                      }
-                    }}
-                    className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
-                  />
-                  {searchQuery && !isSearching && (
-                    <button
-                      aria-label="Clear search"
-                      onClick={() => { setSearchQuery(''); setSearchResults([]); }}
-                      className="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-gray-600"
-                      type="button"
-                    >
-                      <span className="material-icons text-lg">close</span>
-                    </button>
-                  )}
-                  {isSearching && (
-                    <span className="material-icons animate-spin absolute inset-y-0 right-0 px-3 text-gray-400" aria-live="polite" aria-busy="true">autorenew</span>
-                  )}
+            {/* Wall (left) + Search (right) */}
+            <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Wall left: 2 columns */}
+              <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md">
+                <h2 className="text-2xl font-semibold text-gray-800 mb-6">Current Wall</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                  {albums.map(album => (
+                    <div key={album.id} className="group relative">
+                      <img alt={`${album.name} album cover`} className="w-full h-auto rounded-lg object-cover aspect-square shadow-md" src={album.image} />
+                      <button
+                        onClick={() => removeAlbum(album.id)}
+                        className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
+                      >
+                        <span className="material-icons text-base">delete</span>
+                      </button>
+                      <div className="mt-2 text-center">
+                        <p className="font-semibold text-gray-800 truncate">{album.name}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="mt-4 border-t border-gray-200 pt-4">
+              </div>
+
+              {/* Search right: 1 column with internal scroll */}
+              <div className="lg:col-span-1 bg-white p-0 rounded-xl shadow-md flex flex-col max-h-[75vh]">
+                <div className="p-6 border-b sticky top-0 bg-white z-10 rounded-t-xl">
+                  <h2 className="text-xl font-semibold text-gray-800 mb-4">Search & Add Albums</h2>
+                  <div className="relative">
+                    <span className="material-icons absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">search</span>
+                    <input
+                      type="search"
+                      inputMode="search"
+                      aria-label="Search albums"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      placeholder="Search albums..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          // eslint-disable-next-line @typescript-eslint/no-floating-promises
+                          performSearch(searchQuery);
+                        }
+                      }}
+                      className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                    />
+                    {searchQuery && !isSearching && (
+                      <button
+                        aria-label="Clear search"
+                        onClick={() => { setSearchQuery(''); setSearchResults([]); }}
+                        className="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-gray-600"
+                        type="button"
+                      >
+                        <span className="material-icons text-lg">close</span>
+                      </button>
+                    )}
+                    {isSearching && (
+                      <span className="material-icons animate-spin absolute inset-y-0 right-0 px-3 text-gray-400" aria-live="polite" aria-busy="true">autorenew</span>
+                    )}
+                  </div>
+                </div>
+                <div className="p-6 overflow-y-auto">
                   <h3 className="text-lg font-medium text-gray-700 mb-3">Search Results</h3>
                   <ul className="space-y-3">
                     {searchResults.length === 0 && !isSearching && searchQuery.trim() && (
@@ -323,27 +346,6 @@ export default function AdminPage() {
                     ))}
                   </ul>
                 </div>
-              </div>
-            </div>
-
-            {/* Current Wall */}
-            <div className="mt-8 bg-white p-6 rounded-xl shadow-md">
-              <h2 className="text-2xl font-semibold text-gray-800 mb-6">Current Wall</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                {albums.map(album => (
-                  <div key={album.id} className="group relative">
-                    <img alt={`${album.name} album cover`} className="w-full h-auto rounded-lg object-cover aspect-square shadow-md" src={album.image} />
-                    <button
-                      onClick={() => removeAlbum(album.id)}
-                      className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
-                    >
-                      <span className="material-icons text-base">delete</span>
-                    </button>
-                    <div className="mt-2 text-center">
-                      <p className="font-semibold text-gray-800 truncate">{album.name}</p>
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           </div>
