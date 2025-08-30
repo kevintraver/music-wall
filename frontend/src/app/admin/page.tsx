@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import Skeleton from "@/components/Skeleton";
 
 interface Album {
   id: string;
@@ -32,6 +33,9 @@ export default function AdminPage() {
   const [apiBase, setApiBase] = useState('');
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<number | null>(null);
+  const [albumsLoading, setAlbumsLoading] = useState(true);
+  const [playbackLoaded, setPlaybackLoaded] = useState(false);
+  const [queueLoaded, setQueueLoaded] = useState(false);
 
   useEffect(() => {
     const base = `http://${window.location.hostname}:3001`;
@@ -55,7 +59,8 @@ export default function AdminPage() {
 
       fetch(`${apiBase}/api/albums`)
         .then(res => res.json())
-        .then(setAlbums);
+        .then(setAlbums)
+        .finally(() => setAlbumsLoading(false));
     }
   }, [isLoggedIn, apiBase]);
 
@@ -64,8 +69,8 @@ export default function AdminPage() {
     if (isLoggedIn && apiBase) {
       fetch(`${apiBase}/api/queue`)
         .then(res => res.json())
-        .then(setUpNext)
-        .catch(() => setUpNext([]));
+        .then((data) => { setUpNext(data); setQueueLoaded(true); })
+        .catch(() => { setUpNext([]); setQueueLoaded(true); });
     }
   }, [isLoggedIn, apiBase]);
 
@@ -79,7 +84,7 @@ export default function AdminPage() {
           console.log('Now playing:', data.nowPlaying.name, 'by', data.nowPlaying.artist);
         }
         if (data.queue && data.queue.length > 0) {
-          console.log('Queue updated:', data.queue.map(t => t.name).join(', '));
+          console.log('Queue updated:', data.queue.map((t: any) => t.name).join(', '));
         }
         setNowPlaying(data.nowPlaying);
         // Fallback: if server doesn't include isPlaying, keep previous value
@@ -87,6 +92,8 @@ export default function AdminPage() {
           setIsPlaying(data.isPlaying);
         }
         setUpNext(data.queue);
+        setPlaybackLoaded(true);
+        setQueueLoaded(true);
       };
       ws.onopen = () => console.log('Admin WS connected');
       ws.onclose = () => console.log('Admin WS disconnected');
@@ -201,27 +208,42 @@ export default function AdminPage() {
               <div className="lg:col-span-1 bg-white p-6 rounded-xl shadow-md flex flex-col">
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">Queue</h2>
                 <div className="flex-grow space-y-4">
-                  <ul className="space-y-3">
-                    {upNext.length === 0 && (
-                      <li className="text-gray-500">Queue is empty</li>
-                    )}
-                    {upNext.map((t) => (
-                      <li key={t.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
-                        <div className="flex items-center space-x-4">
-                          <span className="material-icons text-gray-400">drag_indicator</span>
-                          {/* Image not available from queue API; keeping layout consistent */}
-                          {/* <img alt={`${t.album} cover`} className="w-12 h-12 rounded-md object-cover" src={t.image} /> */}
-                          <div>
-                            <p className="font-medium text-gray-900">{t.name}</p>
-                            <p className="text-sm text-gray-500">{t.artist}</p>
+                  {queueLoaded ? (
+                    <ul className="space-y-3">
+                      {upNext.length === 0 && (
+                        <li className="text-gray-500">Queue is empty</li>
+                      )}
+                      {upNext.map((t) => (
+                        <li key={t.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                          <div className="flex items-center space-x-4">
+                            <span className="material-icons text-gray-400">drag_indicator</span>
+                            <div>
+                              <p className="font-medium text-gray-900">{t.name}</p>
+                              <p className="text-sm text-gray-500">{t.artist}</p>
+                            </div>
                           </div>
-                        </div>
-                        <button className="text-red-500 hover:text-red-700" title="Remove from queue" disabled>
-                          <span className="material-icons">remove_circle_outline</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                          <button className="text-red-500 hover:text-red-700" title="Remove from queue" disabled>
+                            <span className="material-icons">remove_circle_outline</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <ul className="space-y-3">
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <li key={i} className="p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center space-x-4">
+                            <Skeleton className="w-6 h-6 rounded" />
+                            <div className="flex-1">
+                              <Skeleton className="w-2/3 h-4" />
+                              <Skeleton className="w-1/3 h-3 mt-2" />
+                            </div>
+                            <Skeleton className="w-6 h-6 rounded-full" />
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </div>
 
@@ -229,7 +251,8 @@ export default function AdminPage() {
               <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md flex flex-col">
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">Now Playing</h2>
                 <div className="flex-grow flex flex-col sm:flex-row items-center justify-center text-center bg-gray-800 text-white p-6 rounded-lg mb-4 gap-6">
-                  {nowPlaying ? (
+                  {playbackLoaded ? (
+                    nowPlaying ? (
                     <>
                       <img alt={`${nowPlaying.album} album cover`} className="w-48 h-48 rounded-lg shadow-lg" src={nowPlaying.image} />
                       <div className="flex-1 flex flex-col items-center text-center">
@@ -276,8 +299,22 @@ export default function AdminPage() {
                         </div>
                       </div>
                     </>
+                    ) : (
+                      <p className="text-xl">No track playing</p>
+                    )
                   ) : (
-                    <p className="text-xl">No track playing</p>
+                    <div className="w-full flex items-center justify-center gap-6">
+                      <Skeleton className="w-48 h-48 rounded-lg" />
+                      <div className="flex-1 max-w-sm">
+                        <Skeleton className="w-3/4 h-7" />
+                        <Skeleton className="w-1/2 h-5 mt-3" />
+                        <div className="flex items-center justify-center space-x-6 mt-6">
+                          <Skeleton className="w-14 h-14 rounded-full" />
+                          <Skeleton className="w-16 h-16 rounded-full" />
+                          <Skeleton className="w-14 h-14 rounded-full" />
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -289,20 +326,31 @@ export default function AdminPage() {
               <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md">
                 <h2 className="text-2xl font-semibold text-gray-800 mb-6">Current Wall</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                  {albums.map(album => (
-                    <div key={album.id} className="group relative">
-                      <img alt={`${album.name} album cover`} className="w-full h-auto rounded-lg object-cover aspect-square shadow-md" src={album.image} />
-                      <button
-                        onClick={() => removeAlbum(album.id)}
-                        className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
-                      >
-                        <span className="material-icons text-base">delete</span>
-                      </button>
-                      <div className="mt-3 text-center">
-                        <p className="font-semibold text-gray-800 text-base leading-tight">{album.name}</p>
+                  {albumsLoading ? (
+                    Array.from({ length: 10 }).map((_, i) => (
+                      <div key={i} className="group relative">
+                        <Skeleton className="w-full h-auto rounded-lg aspect-square shadow-md" />
+                        <div className="mt-3 text-center">
+                          <Skeleton className="w-3/4 h-4 mx-auto" />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    albums.map(album => (
+                      <div key={album.id} className="group relative">
+                        <img alt={`${album.name} album cover`} className="w-full h-auto rounded-lg object-cover aspect-square shadow-md" src={album.image} />
+                        <button
+                          onClick={() => removeAlbum(album.id)}
+                          className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"
+                        >
+                          <span className="material-icons text-base">delete</span>
+                        </button>
+                        <div className="mt-3 text-center">
+                          <p className="font-semibold text-gray-800 text-base leading-tight">{album.name}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -349,10 +397,24 @@ export default function AdminPage() {
                 <div className="p-6 overflow-y-auto flex-1">
                   <h3 className="text-lg font-medium text-gray-700 mb-3">Search Results</h3>
                   <ul className="space-y-3">
-                    {searchResults.length === 0 && !isSearching && searchQuery.trim() && (
+                    {isSearching && (
+                      Array.from({ length: 6 }).map((_, i) => (
+                        <li key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center space-x-4">
+                            <Skeleton className="w-12 h-12 rounded-md" />
+                            <div>
+                              <Skeleton className="w-40 h-4" />
+                              <Skeleton className="w-28 h-3 mt-2" />
+                            </div>
+                          </div>
+                          <Skeleton className="w-6 h-6 rounded-full" />
+                        </li>
+                      ))
+                    )}
+                    {!isSearching && searchResults.length === 0 && searchQuery.trim() && (
                       <li className="text-gray-500 px-3">No results</li>
                     )}
-                    {searchResults.map(album => (
+                    {!isSearching && searchResults.map(album => (
                       <li key={album.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
                         <div className="flex items-center space-x-4">
                           <img alt={`${album.name} album cover`} className="w-12 h-12 rounded-md object-cover" src={album.image} />

@@ -3,11 +3,14 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Skeleton from "@/components/Skeleton";
 
 interface Track {
   id: string;
   name: string;
   duration_ms: number;
+  artist?: string;
+  image?: string;
 }
 
 interface Album {
@@ -26,13 +29,17 @@ export default function AlbumPage() {
   const [message, setMessage] = useState('');
   const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
   const [queuedTrack, setQueuedTrack] = useState<string>('');
+  const [upNext, setUpNext] = useState<{ id: string }[]>([]);
+  const [albumLoading, setAlbumLoading] = useState(true);
+  const [playbackLoaded, setPlaybackLoaded] = useState(false);
 
   useEffect(() => {
     const base = `http://${window.location.hostname}:3001`;
     setApiBase(base);
     fetch(`${base}/api/album/${albumId}`)
       .then(res => res.json())
-      .then(setAlbum);
+      .then(setAlbum)
+      .finally(() => setAlbumLoading(false));
   }, [albumId]);
 
   useEffect(() => {
@@ -41,6 +48,7 @@ export default function AlbumPage() {
       const data = JSON.parse(event.data);
       setNowPlaying(data.nowPlaying);
       setUpNext(data.queue || []);
+      setPlaybackLoaded(true);
     };
     return () => ws.close();
   }, []);
@@ -76,7 +84,25 @@ export default function AlbumPage() {
     });
   };
 
-  if (!album) return <div>Loading...</div>;
+  if (albumLoading || !album) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white p-4">
+        <div className="max-w-md mx-auto">
+          <Skeleton className="w-[300px] h-[300px] mx-auto rounded-lg" />
+          <Skeleton className="w-2/3 h-6 mt-4 mx-auto" />
+          <Skeleton className="w-1/3 h-4 mt-2 mx-auto" />
+          <div className="mt-8">
+            <Skeleton className="w-1/2 h-5 mb-4" />
+            <div className="space-y-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="w-full h-10 rounded" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4">
@@ -97,12 +123,21 @@ export default function AlbumPage() {
             <p>{queuedTrack}</p>
           </div>
         )}
-        {nowPlaying && (
-          <div className="text-center mt-4">
-            <h3 className="text-lg font-semibold">Now Playing</h3>
-            <p>{nowPlaying.name} - {nowPlaying.artist}</p>
-          </div>
-        )}
+        <div className="text-center mt-4">
+          <h3 className="text-lg font-semibold">Now Playing</h3>
+          {playbackLoaded ? (
+            nowPlaying ? (
+              <p>{nowPlaying.name} - {nowPlaying.artist}</p>
+            ) : (
+              <p className="text-gray-400">No track playing</p>
+            )
+          ) : (
+            <div className="flex items-center justify-center gap-3 mt-2">
+              <Skeleton className="w-10 h-10" />
+              <Skeleton className="w-40 h-4" />
+            </div>
+          )}
+        </div>
         <div className="mt-8">
           <h2 className="text-xl font-semibold mb-4">Tracks</h2>
           <ul className="space-y-2">
