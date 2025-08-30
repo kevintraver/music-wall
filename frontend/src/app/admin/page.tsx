@@ -246,19 +246,19 @@ export default function AdminPage() {
               <div className="space-y-4">
                 <div className="relative">
                   <span className="material-icons absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">search</span>
-                  <input
-                    type="text"
-                    placeholder="Search albums..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-                  />
+                    <input
+                      type="text"
+                      placeholder="Search albums..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                    />
                 </div>
                 <div className="mt-4 border-t border-gray-200 pt-4">
                   <h3 className="text-lg font-medium text-gray-700 mb-3">Search Results</h3>
                   <ul className="space-y-3">
                     {searchResults.map(album => (
-                      <li key={album.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer" onClick={() => addAlbum(album)}>
+                      <li key={album.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer" onClick={() => { addAlbum(album); setSearchQuery(''); setSearchResults([]); }}>
                         <div className="flex items-center space-x-4">
                           <img alt={`${album.name} album cover`} className="w-12 h-12 rounded-md object-cover" src={album.image} />
                           <div>
