@@ -50,9 +50,18 @@ export default function AdminPage() {
       const ws = new WebSocket(`ws://${window.location.hostname}:3002`);
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        console.log('Admin WS update:', data);
+        if (data.nowPlaying) {
+          console.log('Now playing:', data.nowPlaying.name, 'by', data.nowPlaying.artist);
+        }
+        if (data.queue && data.queue.length > 0) {
+          console.log('Queue updated:', data.queue.map(t => t.name).join(', '));
+        }
         setNowPlaying(data.nowPlaying);
         setUpNext(data.queue);
       };
+      ws.onopen = () => console.log('Admin WS connected');
+      ws.onclose = () => console.log('Admin WS disconnected');
       return () => ws.close();
     }
   }, [isLoggedIn]);
@@ -205,19 +214,28 @@ export default function AdminPage() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => fetch(`${apiBase}/api/playback/play`, { method: 'POST' })}
+              onClick={() => {
+                console.log('Play button clicked');
+                fetch(`${apiBase}/api/playback/play`, { method: 'POST' }).then(() => console.log('Play command sent'));
+              }}
               className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded"
             >
               Play
             </button>
             <button
-              onClick={() => fetch(`${apiBase}/api/playback/pause`, { method: 'POST' })}
+              onClick={() => {
+                console.log('Pause button clicked');
+                fetch(`${apiBase}/api/playback/pause`, { method: 'POST' }).then(() => console.log('Pause command sent'));
+              }}
               className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded"
             >
               Pause
             </button>
             <button
-              onClick={() => fetch(`${apiBase}/api/playback/next`, { method: 'POST' })}
+              onClick={() => {
+                console.log('Skip button clicked');
+                fetch(`${apiBase}/api/playback/next`, { method: 'POST' }).then(() => console.log('Skip command sent'));
+              }}
               className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
             >
               Skip
