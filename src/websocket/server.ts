@@ -95,6 +95,96 @@ export function startWebSocketServer() {
           res.end(JSON.stringify({ error: 'Internal server error' }));
         }
       });
+    } else if (req.method === 'POST' && req.url === '/queue/add') {
+      // Add a track to the Spotify queue using WS server tokens
+      if (!accessToken) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'WS server not authenticated with Spotify' }));
+        return;
+      }
+      let body = '';
+      req.on('data', (chunk: any) => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const { trackId } = JSON.parse(body || '{}');
+          if (!trackId) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing trackId' }));
+            return;
+          }
+
+          // Ensure we have an active device
+          const devices = await spotifyApi.getMyDevices();
+          const activeDevice = devices.body.devices.find(d => d.is_active);
+          if (!activeDevice) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'No active Spotify device found' }));
+            return;
+          }
+
+          await spotifyApi.addToQueue(`spotify:track:${trackId}`, { device_id: activeDevice.id || undefined });
+
+          // Fetch queue and broadcast update
+          try {
+            const queueRes = await fetch('https://api.spotify.com/v1/me/player/queue', {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (queueRes.ok) {
+              const queueJson: any = await queueRes.json();
+              const items: any[] = Array.isArray(queueJson?.queue) ? queueJson.queue : [];
+              const normalized = items.map((t: any) => ({
+                id: t?.id,
+                uri: t?.uri,
+                name: t?.name ?? '',
+                artist: t?.artists?.[0]?.name,
+                album: t?.album?.name ?? '',
+                image: t?.album?.images?.[0]?.url,
+              }));
+              messageHandler.broadcastQueueUpdate(normalized as any);
+            }
+          } catch {/* ignore */}
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } catch (e: any) {
+          logger.error('WS HTTP /queue/add error:', e?.message || e);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Failed to add to queue' }));
+        }
+      });
+    } else if (req.method === 'GET' && req.url === '/queue') {
+      if (!accessToken) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'WS server not authenticated with Spotify' }));
+        return;
+      }
+      (async () => {
+        try {
+          const queueRes = await fetch('https://api.spotify.com/v1/me/player/queue', {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (!queueRes.ok) {
+            res.writeHead(queueRes.status, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Failed to fetch queue' }));
+            return;
+          }
+          const queueJson: any = await queueRes.json();
+          const items: any[] = Array.isArray(queueJson?.queue) ? queueJson.queue : [];
+          const normalized = items.map((t: any) => ({
+            id: t?.id,
+            uri: t?.uri,
+            name: t?.name ?? '',
+            artist: t?.artists?.[0]?.name,
+            image: t?.album?.images?.[0]?.url,
+          }));
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(normalized));
+        } catch (e: any) {
+          logger.error('WS HTTP /queue error:', e?.message || e);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Queue fetch error' }));
+        }
+      })();
     } else {
       res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Not found' }));
@@ -147,6 +237,18 @@ export function startWebSocketServer() {
             if (accessToken) {
               logger.playback('Starting Spotify playback polling after auth...');
               startPlaybackPolling(messageHandler);
+            }
+          }
+
+          // Allow clients (admin) to force a fresh snapshot
+          if (data.type === 'refresh') {
+            try {
+              const snapshot = await fetchCurrentPlayback();
+              if (snapshot) {
+                messageHandler.broadcastPlaybackUpdate(snapshot);
+              }
+            } catch (e) {
+              logger.warn('Error handling refresh request', e as any);
             }
           }
 
@@ -250,6 +352,84 @@ async function fetchCurrentPlayback(): Promise<PlaybackState | null> {
 
     const currentItem: any = (nowPlayingRes.body as any)?.item || (playbackStateRes.body as any)?.item;
 
+    // Fetch queue via Spotify's queue endpoint
+    let queueTracks: Track[] = [];
+    try {
+      const queueRes = await fetch('https://api.spotify.com/v1/me/player/queue', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (queueRes.ok) {
+        const queueJson: any = await queueRes.json();
+        const items: any[] = Array.isArray(queueJson?.queue) ? queueJson.queue : [];
+        queueTracks = items.map((t: any) => ({
+          id: t?.id,
+          uri: t?.uri,
+          name: t?.name,
+          artist: t?.artists?.[0]?.name,
+          album: t?.album?.name,
+          image: t?.album?.images?.[0]?.url,
+        }));
+      } else {
+        logger.warn('Spotify queue fetch failed', { status: queueRes.status });
+      }
+    } catch (e) {
+      logger.warn('Error fetching Spotify queue', e as any);
+    }
+
+    // Fallback: if queue is empty, try deriving the next track from playback context (album/playlist)
+    if (queueTracks.length === 0 && currentItem) {
+      try {
+        const contextUri: string | undefined = (playbackStateRes.body as any)?.context?.uri;
+        if (contextUri?.startsWith('spotify:album:')) {
+          const albumId = contextUri.split(':')[2];
+          const albumRes = await fetch(`https://api.spotify.com/v1/albums/${albumId}/tracks?limit=50`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (albumRes.ok) {
+            const albumData: any = await albumRes.json();
+            const tracks: any[] = albumData?.items || [];
+            const idx = tracks.findIndex((t: any) => t?.id === currentItem.id);
+            const next = idx >= 0 ? tracks[idx + 1] : undefined;
+            if (next) {
+              queueTracks = [{
+                id: next.id,
+                uri: next.uri,
+                name: next.name,
+                artist: next.artists?.[0]?.name,
+                album: (playbackStateRes.body as any)?.item?.album?.name,
+                image: (playbackStateRes.body as any)?.item?.album?.images?.[0]?.url,
+              }];
+            }
+          }
+        } else if (contextUri?.startsWith('spotify:playlist:')) {
+          const playlistId = contextUri.split(':')[2];
+          // Fetch first 100 tracks; adequate for next-up determination
+          const plRes = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=100`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (plRes.ok) {
+            const plData: any = await plRes.json();
+            const items: any[] = plData?.items || [];
+            const tracks = items.map((it: any) => it?.track).filter(Boolean);
+            const idx = tracks.findIndex((t: any) => t?.id === currentItem.id);
+            const next = idx >= 0 ? tracks[idx + 1] : undefined;
+            if (next) {
+              queueTracks = [{
+                id: next.id,
+                uri: next.uri,
+                name: next.name,
+                artist: next.artists?.[0]?.name,
+                album: next.album?.name,
+                image: next.album?.images?.[0]?.url,
+              }];
+            }
+          }
+        }
+      } catch (e) {
+        logger.debug('Queue fallback failed', e as any);
+      }
+    }
+
     const playbackState = {
       nowPlaying: currentItem && currentItem.album && currentItem.artists ? {
         id: currentItem.id,
@@ -259,7 +439,7 @@ async function fetchCurrentPlayback(): Promise<PlaybackState | null> {
         image: currentItem.album?.images?.[0]?.url,
       } : null,
       isPlaying: (nowPlayingRes.body as any)?.is_playing ?? (playbackStateRes.body as any)?.is_playing ?? false,
-      queue: [] // Queue fetching would need separate API call
+      queue: queueTracks
     };
 
     logger.playback('Playback state result:', {

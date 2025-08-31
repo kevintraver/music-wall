@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Skeleton from "@/components/shared/Skeleton";
 import { normalizeQueue } from "@/lib/spotify/queue";
+import { getTokens } from "@/lib/auth/tokens";
 import { logger } from "@/lib/utils/logger";
 
 interface Track {
@@ -270,7 +271,13 @@ export default function AlbumPage() {
   // Seed queue initially from API in case WS message is delayed or lacks queue
   useEffect(() => {
     if (!apiBase) return;
-    fetch(`${apiBase}/api/queue`)
+    const { accessToken, refreshToken } = getTokens();
+    const headers: Record<string, string> = {};
+    if (accessToken) {
+      headers['x-spotify-access-token'] = accessToken;
+      if (refreshToken) headers['x-spotify-refresh-token'] = refreshToken;
+    }
+    fetch(`${apiBase}/api/queue`, { headers })
       .then(res => res.json())
       .then((payload) => setUpNext(normalizeQueue(payload)))
       .catch(() => {/* ignore */});
@@ -288,9 +295,15 @@ export default function AlbumPage() {
     setPendingTrackId(trackId);
 
     try {
+      const { accessToken, refreshToken } = getTokens();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (accessToken) {
+        headers['x-spotify-access-token'] = accessToken;
+        if (refreshToken) headers['x-spotify-refresh-token'] = refreshToken;
+      }
       const response = await fetch(`${apiBase}/api/queue`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ trackId })
       });
 
@@ -326,7 +339,7 @@ export default function AlbumPage() {
         setTimeout(() => queueTrack(trackId, retryCount + 1), retryDelay);
 
       } else if (response.status === 401) {
-        setMessage('❌ Authentication required. Please refresh the page.');
+        setMessage('❌ Queue unavailable. Ask the host to log into Admin.');
       } else {
         const errorData = await response.json().catch(() => ({}));
         setMessage(`❌ Failed to queue track: ${errorData.error || 'Unknown error'}`);
@@ -353,7 +366,20 @@ export default function AlbumPage() {
   };
 
   if (albumLoading) {
-    return <div>Loading album...</div>;
+    return (
+      <div className="min-h-screen bg-gray-900 text-white p-4">
+        <div className="max-w-md mx-auto">
+          <div className="mt-8">
+            <div className="space-y-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="w-full h-10 rounded" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -369,31 +395,6 @@ export default function AlbumPage() {
           >
             Try Again
           </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!album) {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white p-4">
-        <div className="max-w-md mx-auto text-center">
-          <h1 className="text-2xl font-bold mb-4">Album Not Found</h1>
-          <p className="text-gray-400">The requested album could not be found.</p>
-        </div>
-      </div>
-    );
-  }
-    return (
-      <div className="min-h-screen bg-gray-900 text-white p-4">
-        <div className="max-w-md mx-auto">
-          <div className="mt-8">
-            <div className="space-y-2">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton key={i} className="w-full h-10 rounded" />
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -449,7 +450,7 @@ export default function AlbumPage() {
 
           <div className="space-y-3">
             {(album.tracks ?? []).map((track, index) => {
-              const isQueued = upNext.some(t => t.id === track.id);
+              const isQueued = upNext.some(t => t.id === track.id || t.uri === track.id);
               const isPending = pendingTrackId === track.id;
               const duration = track.duration_ms ? formatDuration(track.duration_ms) : '';
 

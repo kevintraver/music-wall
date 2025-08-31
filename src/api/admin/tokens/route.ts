@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { setServerTokens } from '@/lib/auth/server-tokens';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,11 +19,12 @@ export async function POST(request: NextRequest) {
     }
 
     try {
+      setServerTokens({ accessToken, refreshToken });
       if (global.setSpotifyTokens) {
         global.setSpotifyTokens({ accessToken, refreshToken });
       }
     } catch (e) {
-      console.error('Failed updating WS tokens:', e);
+      console.error('Failed updating tokens:', e);
     }
 
     // No server-side persistence; tokens must live in client localStorage

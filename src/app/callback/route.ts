@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_REDIRECT_URI, APP_BASE_URL, assertSpotifyEnv } from '@/lib/utils/env';
+import { setServerTokens } from '@/lib/auth/server-tokens';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -49,8 +50,9 @@ export async function GET(request: NextRequest) {
     const refreshToken = (data.refresh_token as string) || '';
     console.log('Successfully authenticated with Spotify tokens');
 
-    // Update running WS server tokens if available (no server persistence)
+    // Update tokens in this Next.js process and the WebSocket server
     try {
+      setServerTokens({ accessToken, refreshToken });
       if (global.setSpotifyTokens) {
         global.setSpotifyTokens({ accessToken, refreshToken });
       }

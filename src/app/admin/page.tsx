@@ -222,6 +222,21 @@ export default function AdminPage() {
           const { accessToken, refreshToken } = getTokens();
           ws?.send(JSON.stringify({ type: 'auth', accessToken, refreshToken }));
           ws?.send(JSON.stringify({ type: 'refresh' }));
+
+          // Seed queue directly from API as a fallback
+          if (accessToken) {
+            fetch('/api/queue', {
+              headers: { 'x-spotify-access-token': accessToken },
+              cache: 'no-store',
+            })
+              .then(res => res.ok ? res.json() : [])
+              .then((payload) => {
+                const normalized = normalizeQueue(payload);
+                setUpNext(normalized);
+                setQueueLoaded(true);
+              })
+              .catch(() => { /* ignore */ });
+          }
         } catch {}
 
         // Start heartbeat
