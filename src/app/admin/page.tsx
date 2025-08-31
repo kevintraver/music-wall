@@ -194,18 +194,27 @@ export default function AdminPage() {
             return;
           }
 
-           // Albums-only updates (e.g., from reordering)
-          if (messageType === 'albums' && Array.isArray(payload)) {
-            console.log('💿 Albums-only update:', payload.length, 'albums');
-            const albumsChanged = JSON.stringify(payload) !== JSON.stringify(albums);
-            if (albumsChanged) {
-              setAlbums(payload);
-              albumsRef.current = payload;
-              // Save to localStorage to keep in sync
-              saveAlbumsToStorage(payload);
-            }
-            return; // Don't process other fields for albums-only updates
-          }
+            // Albums-only updates (e.g., from reordering)
+           if (messageType === 'albums') {
+             let albumsData = null;
+             if (Array.isArray(payload)) {
+               albumsData = payload;
+             } else if (Array.isArray((data as any).albums)) {
+               albumsData = (data as any).albums;
+             }
+
+             if (albumsData) {
+               console.log('💿 Albums-only update:', albumsData.length, 'albums');
+               const albumsChanged = JSON.stringify(albumsData) !== JSON.stringify(albums);
+               if (albumsChanged) {
+                 setAlbums(albumsData);
+                 albumsRef.current = albumsData;
+                 // Save to localStorage to keep in sync
+                 saveAlbumsToStorage(albumsData);
+               }
+               return; // Don't process other fields for albums-only updates
+             }
+           }
           
            // Playback-only updates (e.g., from play/pause/skip)
            if (messageType === 'playback' || (typeof payload === 'object' && payload !== null && ('nowPlaying' in payload || 'isPlaying' in payload || 'queue' in payload))) {

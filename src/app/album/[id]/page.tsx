@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Skeleton from "@/components/shared/Skeleton";
 import { normalizeQueue } from "@/lib/spotify/queue";
 
@@ -32,6 +32,7 @@ const formatDuration = (ms: number): string => {
 
 export default function AlbumPage() {
   const params = useParams();
+  const router = useRouter();
   const albumId = params.id as string;
   const [album, setAlbum] = useState<Album | null>(null);
   const [apiBase, setApiBase] = useState('');
@@ -204,10 +205,23 @@ export default function AlbumPage() {
               }
               break;
 
-            case 'albums':
-              // Album updates - might affect the current album
-              console.log('💿 Albums updated');
-              // Could refresh album data if needed
+             case 'albums':
+               // Album updates - might affect the current album
+               console.log('💿 Albums updated');
+               // Check if current album still exists or position changed
+               if (Array.isArray(data.payload)) {
+                 const currentAlbum = data.payload.find((album: any) => album.id === albumId);
+                 if (!currentAlbum) {
+                   console.log('Current album no longer exists, redirecting...');
+                   router.push('/');
+                 }
+               } else if (Array.isArray(data.albums)) {
+                 const currentAlbum = data.albums.find((album: any) => album.id === albumId);
+                 if (!currentAlbum) {
+                   console.log('Current album no longer exists, redirecting...');
+                   router.push('/');
+                 }
+               }
               break;
 
             default:

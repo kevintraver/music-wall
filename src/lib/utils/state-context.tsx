@@ -111,11 +111,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           const data = JSON.parse(event.data);
 
           switch (data.type) {
-            case 'albums':
-              if (Array.isArray(data.payload)) {
-                dispatch({ type: 'SET_ALBUMS', payload: data.payload });
-              }
-              break;
+             case 'albums':
+               if (Array.isArray(data.payload)) {
+                 dispatch({ type: 'SET_ALBUMS', payload: data.payload });
+               } else if (Array.isArray(data.albums)) {
+                 dispatch({ type: 'SET_ALBUMS', payload: data.albums });
+               }
+               break;
             case 'playback':
               if (data.payload) {
                 if (data.payload.nowPlaying !== undefined) {
