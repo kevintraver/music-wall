@@ -8,6 +8,7 @@ import { normalizeQueue } from "@/lib/spotify/queue";
 import NowPlayingPanel from "@/components/shared/NowPlayingPanel";
 
 import { getTokens, clearTokens } from "@/lib/auth/tokens";
+import { logger } from "@/lib/utils/logger";
 import { getAlbums, addAlbum as addAlbumToStorage, removeAlbum as removeAlbumFromStorage, reorderAlbums, saveAlbumsToStorage, resetToDefaults } from "@/lib/utils/localStorage";
 
 interface Album {
@@ -77,7 +78,7 @@ export default function AdminPage() {
     })
       .then(res => res.json())
       .then(data => {
-        console.log('Auth status:', data);
+        logger.info('Auth status:', data);
         if (!data.authenticated) {
           router.replace('/login');
           setAuthChecked(true);
@@ -96,7 +97,7 @@ export default function AdminPage() {
           },
           body: JSON.stringify({ accessToken, refreshToken })
         }).then(() => {
-          console.log('🔑 Synced tokens to server for WS');
+          logger.websocket('Synced tokens to server for WS');
         }).catch((e) => {
           console.warn('Failed to sync tokens to server', e);
         });
@@ -115,7 +116,7 @@ export default function AdminPage() {
       const shouldReset = urlParams.get('reset') === 'true';
 
       if (shouldReset) {
-        console.log('🔄 Resetting admin to default albums...');
+        logger.info('Resetting admin to default albums...');
         resetToDefaults()
           .then(setAlbums)
           .finally(() => setAlbumsLoading(false));

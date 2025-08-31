@@ -17,6 +17,8 @@ app.prepare().then(() => {
   server.listen(port, (err) => {
     if (err) throw err;
     console.log(`> Ready on http://localhost:${port}`);
+    console.log('💡 Make sure to also run: npm run ws (in another terminal)');
+    console.log('🔌 WebSocket server needed for real-time album updates');
   });
 
   // Set up global function to communicate with WebSocket server

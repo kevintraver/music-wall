@@ -349,7 +349,7 @@ async function refreshAccessToken() {
         refreshToken = data.refresh_token;
       }
       spotifyApi.setAccessToken(accessToken);
-      console.log('Successfully refreshed Spotify tokens');
+      logger.success('Successfully refreshed Spotify tokens');
     } else {
       console.error('Failed to refresh token:', data);
     }

@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import { WSClient, WSMessage } from './types';
+import { logger } from '@/lib/utils/logger';
 
 export class WebSocketClientManager {
   private clients: Map<string, WSClient> = new Map();
@@ -53,14 +54,14 @@ export class WebSocketClientManager {
 
   broadcast(message: WSMessage, filter?: (client: WSClient) => boolean): void {
     const clientsToSend = filter ? this.getAllClients().filter(filter) : this.getAllClients();
-    console.log(`📡 Broadcasting ${message.type} to ${clientsToSend.length} clients`);
+    logger.websocket(`Broadcasting ${message.type} to ${clientsToSend.length} clients`);
 
     clientsToSend.forEach(client => {
       if (client.ws.readyState === WebSocket.OPEN) {
-        console.log(`📡 Sending ${message.type} to client ${client.id}`);
+        logger.debug(`Sending ${message.type} to client ${client.id}`);
         client.ws.send(JSON.stringify(message));
       } else {
-        console.log(`📡 Client ${client.id} not ready (state: ${client.ws.readyState})`);
+        logger.debug(`Client ${client.id} not ready (state: ${client.ws.readyState})`);
       }
     });
   }
@@ -84,7 +85,7 @@ export class WebSocketClientManager {
 
       for (const [clientId, client] of this.clients) {
         if (now - client.lastActivity > timeout) {
-          console.log(`Removing inactive client: ${clientId}`);
+          logger.info(`Removing inactive client: ${clientId}`);
           client.ws.close();
           this.clients.delete(clientId);
         }

@@ -1,11 +1,12 @@
 import { WSMessage, WSClient, Album, Track, PlaybackState } from './types';
 import { WebSocketClientManager } from './client-manager';
+import { logger } from '@/lib/utils/logger';
 
 export class WebSocketMessageHandler {
   constructor(private clientManager: WebSocketClientManager) {}
 
   handleMessage(message: WSMessage, client: WSClient): void {
-    console.log(`📨 WS message from ${client.isAdmin ? 'admin' : 'wall'} client:`, message.type);
+    logger.websocket(`WS message from ${client.isAdmin ? 'admin' : 'wall'} client:`, message.type);
 
     switch (message.type) {
       case 'auth':
