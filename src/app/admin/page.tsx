@@ -477,6 +477,23 @@ export default function AdminPage() {
   };
 
     const handlePlaybackAction = useCallback(async (action: string, endpoint: string) => {
+      const now = Date.now();
+
+      // Rate limiting: Prevent API calls more frequent than every 500ms
+      if (now - lastApiCall < 500) {
+        console.log(`Playback action ${action} rate limited - too soon after last call`);
+        return;
+      }
+
+      // Double-check: Prevent multiple simultaneous playback actions
+      if (playbackActionInProgress) {
+        console.log(`Playback action ${action} blocked - ${playbackActionInProgress} already in progress`);
+        return;
+      }
+
+      // Record this API call
+      setLastApiCall(now);
+
       // Optimistically update the UI immediately
       let originalIsPlaying = isPlaying;
 
@@ -489,6 +506,7 @@ export default function AdminPage() {
       try {
         // Disable button during API call
         setPlaybackActionInProgress(action);
+        console.log(`🎵 Starting ${action} request...`);
 
         const { accessToken, refreshToken } = getTokens();
         const res = await fetch(endpoint, {

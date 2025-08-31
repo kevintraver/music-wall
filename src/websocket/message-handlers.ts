@@ -26,11 +26,11 @@ export class WebSocketMessageHandler {
   private handleAuth(message: WSMessage, client: WSClient): void {
     // Update client auth status
     client.isAdmin = true;
-    console.log(`🔑 Client ${client.id} authenticated as admin`);
+    logger.info(`Client ${client.id} authenticated as admin`);
   }
 
   private handleRefresh(client: WSClient): void {
-    console.log(`🛰️  Refresh requested by client ${client.id}`);
+    logger.info(`Refresh requested by client ${client.id}`);
     // This will trigger a fresh data broadcast
   }
 
