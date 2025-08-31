@@ -7,6 +7,7 @@ import { normalizeQueue } from "@/lib/queue";
 import NowPlayingPanel from "@/components/NowPlayingPanel";
 import { useRouter } from "next/navigation";
 import { getTokens, clearTokens } from "@/lib/tokens";
+import { getAlbums, addAlbum as addAlbumToStorage, removeAlbum as removeAlbumFromStorage, reorderAlbums } from "@/lib/localStorage";
 
 interface Album {
   id: string;
@@ -49,6 +50,7 @@ export default function AdminPage() {
   const [playbackActionLoading, setPlaybackActionLoading] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [showWsTooltip, setShowWsTooltip] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     // Check auth status on load
@@ -95,47 +97,15 @@ export default function AdminPage() {
         })
         .catch(() => {/* ignore */});
 
-      fetch('/api/albums')
-        .then(res => res.json())
+      getAlbums()
         .then(setAlbums)
         .finally(() => setAlbumsLoading(false));
     }
   }, [isLoggedIn]);
 
-  // Fetch initial queue when logged in
-  useEffect(() => {
-    if (isLoggedIn) {
-      const { accessToken, refreshToken } = getTokens();
-      fetch('/api/queue', {
-        headers: {
-          'x-spotify-access-token': accessToken,
-          'x-spotify-refresh-token': refreshToken
-        }
-      })
-        .then(res => res.json())
-        .then((payload) => { setUpNext(normalizeQueue(payload)); setQueueLoaded(true); })
-        .catch(() => { setUpNext([]); setQueueLoaded(true); });
-    }
-  }, [isLoggedIn]);
+  // Initial queue snapshot will arrive via WebSocket after connect
 
-  // Poll queue periodically as a fallback if WS doesn’t include it
-  useEffect(() => {
-    if (!isLoggedIn) return;
-    const pollingInterval = parseInt(process.env.NEXT_PUBLIC_QUEUE_POLLING_INTERVAL || '3000');
-    const id = window.setInterval(() => {
-      const { accessToken, refreshToken } = getTokens();
-      fetch('/api/queue', {
-        headers: {
-          'x-spotify-access-token': accessToken,
-          'x-spotify-refresh-token': refreshToken,
-        },
-      })
-        .then(res => res.json())
-        .then((payload) => setUpNext(normalizeQueue(payload)))
-        .catch(() => {/* ignore */});
-    }, pollingInterval);
-    return () => window.clearInterval(id);
-  }, [isLoggedIn]);
+  // Removed API queue polling; rely on WebSocket updates
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -151,11 +121,13 @@ export default function AdminPage() {
       if (ws && ws.readyState === WebSocket.OPEN) return;
 
       ws = new WebSocket(`ws://${window.location.hostname}:3002`);
+      wsRef.current = ws;
 
       ws.onopen = () => {
         console.log('Admin WebSocket connected');
         setWsConnected(true);
         reconnectAttempts = 0;
+        setQueueLoaded(true); // UI can render while snapshot arrives
 
         // Start heartbeat
         heartbeatInterval = setInterval(() => {
@@ -266,6 +238,7 @@ export default function AdminPage() {
       ws.onclose = () => {
         console.log('Admin WebSocket disconnected, attempting reconnection...');
         setWsConnected(false);
+        wsRef.current = null;
         if (heartbeatInterval) {
           clearInterval(heartbeatInterval);
           heartbeatInterval = null;
@@ -292,6 +265,7 @@ export default function AdminPage() {
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
       if (ws) ws.close();
+      wsRef.current = null;
     };
   }, [isLoggedIn]);
 
