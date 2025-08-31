@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Skeleton from "@/components/shared/Skeleton";
 import { normalizeQueue } from "@/lib/spotify/queue";
+import { logger } from "@/lib/utils/logger";
 
 interface Track {
   id: string;
@@ -168,7 +169,7 @@ export default function AlbumPage() {
       ws = new WebSocket(`ws://${window.location.hostname}:3002`);
 
       ws.onopen = () => {
-        console.log('Album WebSocket connected');
+        logger.websocket('Album WebSocket connected');
         reconnectAttempts = 0;
 
         // Start heartbeat
@@ -192,7 +193,7 @@ export default function AlbumPage() {
             case 'queue':
               // Queue update
               if (Array.isArray(data.payload)) {
-                console.log('📋 Queue updated:', data.payload.length, 'tracks');
+                logger.info('Queue updated:', data.payload.length, 'tracks');
                 setUpNext(normalizeQueue({ queue: data.payload }));
               }
               break;
