@@ -72,6 +72,21 @@ export default function AdminPage() {
         }
         setIsLoggedIn(true);
         setAuthChecked(true);
+
+        // Sync tokens to server/WS so Now Playing can poll Spotify
+        fetch('/api/admin/tokens', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-spotify-access-token': accessToken,
+            'x-spotify-refresh-token': refreshToken,
+          },
+          body: JSON.stringify({ accessToken, refreshToken })
+        }).then(() => {
+          console.log('🔑 Synced tokens to server for WS');
+        }).catch((e) => {
+          console.warn('Failed to sync tokens to server', e);
+        });
       })
       .catch(error => {
         console.error('Error checking auth status:', error);
