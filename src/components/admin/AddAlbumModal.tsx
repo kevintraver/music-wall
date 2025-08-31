@@ -21,6 +21,7 @@ function AddAlbumModal({ open, onClose, onAddAlbum }: Props) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Album[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [pendingAddId, setPendingAddId] = useState<string | null>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -36,17 +37,21 @@ function AddAlbumModal({ open, onClose, onAddAlbum }: Props) {
     const q = query.trim();
     if (!q) {
       setSearchResults([]);
+      setHasSearched(false);
       return;
     }
     setIsSearching(true);
+    setHasSearched(false);
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
       if (!res.ok) throw new Error('Search failed');
       const results: Album[] = await res.json();
       setSearchResults(results);
+      setHasSearched(true);
     } catch (e) {
       console.error('Search error:', e);
       setSearchResults([]);
+      setHasSearched(true);
     } finally {
       setIsSearching(false);
     }
@@ -71,11 +76,13 @@ function AddAlbumModal({ open, onClose, onAddAlbum }: Props) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     if (searchQuery.trim()) {
+      setHasSearched(false);
       debounceRef.current = setTimeout(() => {
         performSearch(searchQuery);
       }, 500);
     } else {
       setSearchResults([]);
+      setHasSearched(false);
     }
 
     return () => {
@@ -88,6 +95,7 @@ function AddAlbumModal({ open, onClose, onAddAlbum }: Props) {
       setSearchQuery('');
       setSearchResults([]);
       setIsSearching(false);
+      setHasSearched(false);
       setPendingAddId(null);
     }
   }, [open]);
@@ -174,9 +182,13 @@ function AddAlbumModal({ open, onClose, onAddAlbum }: Props) {
                   </div>
                 ))}
               </div>
-            ) : searchQuery && !isSearching ? (
+            ) : searchQuery.trim() && hasSearched && !isSearching ? (
               <div className="text-center py-8 text-gray-400">
                 No results found
+              </div>
+            ) : searchQuery.trim() && !isSearching && !hasSearched ? (
+              <div className="text-center py-8 text-gray-400">
+                Searching...
               </div>
             ) : null}
           </div>
