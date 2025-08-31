@@ -21,9 +21,9 @@ const localIP = getLocalIP();
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { albumId: string } }
+  { params }: { params: Promise<{ albumId: string }> }
 ) {
-  const albumId = params.albumId;
+  const { albumId } = await params;
   const url = `http://${localIP}:3000/album/${albumId}`;
 
   try {

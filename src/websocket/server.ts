@@ -65,6 +65,45 @@ export function startWebSocketServer() {
 
   console.log('WebSocket server listening on port', WS_PORT);
 
+  // Also start an HTTP server for inter-process communication
+  const http = require('http');
+  const httpServer = http.createServer((req: any, res: any) => {
+    if (req.method === 'POST' && req.url === '/update') {
+      let body = '';
+      req.on('data', (chunk: any) => {
+        body += chunk.toString();
+      });
+      req.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          console.log('📡 Received update from Next.js:', data.type);
+
+          // Handle the update
+          if (data.type === 'albums' && Array.isArray(data.albums)) {
+            messageHandler.broadcastAlbums(data.albums);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
+          } else {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid update data' }));
+          }
+        } catch (error) {
+          console.error('Error processing update:', error);
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Internal server error' }));
+        }
+      });
+    } else {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Not found' }));
+    }
+  });
+
+  const HTTP_PORT = WS_PORT + 1; // Use port 3003 for HTTP communication
+  httpServer.listen(HTTP_PORT, () => {
+    console.log(`WebSocket HTTP server listening on port ${HTTP_PORT}`);
+  });
+
   wss.on('connection', (ws: WebSocket) => {
     console.log('🔌 WS client connected');
 
@@ -137,7 +176,7 @@ export function startWebSocketServer() {
   };
 
   // Start polling for playback updates
-  startPlaybackPolling();
+  startPlaybackPolling(messageHandler);
 
   console.log(`🚀 WebSocket server started - polling enabled: ${!!accessToken}`);
   console.log(`🔑 Access token present: ${!!accessToken}, Refresh token present: ${!!refreshToken}`);
@@ -145,7 +184,7 @@ export function startWebSocketServer() {
   // Start polling immediately if we have tokens
   if (accessToken) {
     console.log('🎵 Starting Spotify playback polling...');
-    startPlaybackPolling();
+    startPlaybackPolling(messageHandler);
   }
 }
 
@@ -236,16 +275,13 @@ async function fetchCurrentPlayback(): Promise<PlaybackState | null> {
   }
 }
 
-function startPlaybackPolling() {
+function startPlaybackPolling(messageHandler: WebSocketMessageHandler) {
   if (!accessToken) return;
 
   const pollInterval = setInterval(async () => {
     const playbackState = await fetchCurrentPlayback();
     if (playbackState) {
-      global.sendWebSocketUpdate({
-        type: 'playback',
-        payload: playbackState
-      });
+      messageHandler.broadcastPlaybackUpdate(playbackState);
     }
   }, parseInt(process.env.WS_POLLING_INTERVAL || '2000'));
 
