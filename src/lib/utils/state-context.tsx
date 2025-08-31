@@ -147,7 +147,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
               // Heartbeat response, ignore
               break;
             default:
-              console.log('Unknown WebSocket message type:', data.type);
+              logger.warn('Unknown WebSocket message type:', data.type);
           }
         } catch (error) {
           console.error('Error processing WebSocket message:', error);
@@ -155,7 +155,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       };
 
       ws.onclose = () => {
-        console.log('WebSocket disconnected, attempting reconnection...');
+        logger.websocket('WebSocket disconnected, attempting reconnection...');
         if (reconnectAttempts < maxReconnectAttempts) {
           const delay = baseReconnectDelay * Math.pow(2, reconnectAttempts);
           setTimeout(() => {
