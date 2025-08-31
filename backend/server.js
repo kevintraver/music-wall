@@ -146,12 +146,18 @@ setInterval(() => {
 
 // Track API call timestamps to implement basic rate limiting
 let lastApiCall = 0;
-const MIN_API_INTERVAL = 2000; // Minimum 2 seconds between API calls
+const MIN_API_INTERVAL = 5000; // Minimum 5 seconds between API calls
+let consecutiveErrors = 0;
+const MAX_CONSECUTIVE_ERRORS = 3;
 
 // Poll for now playing and queue, send to WS clients
 setInterval(async () => {
   if (accessToken) {
     const now = Date.now();
+
+    // If we've had too many consecutive errors, slow down polling
+    const currentInterval = consecutiveErrors > MAX_CONSECUTIVE_ERRORS ? 60000 : 30000; // 1 min or 30 sec
+
     if (now - lastApiCall < MIN_API_INTERVAL) {
       return; // Skip this polling cycle to avoid rate limits
     }
@@ -163,6 +169,7 @@ setInterval(async () => {
         spotifyApi.getMyCurrentPlaybackState()
       ]);
       lastApiCall = Date.now();
+      consecutiveErrors = 0; // Reset error count on success
 
       console.log('Now playing:', nowPlayingRes.body.item ? nowPlayingRes.body.item.name : 'None');
       console.log('Queue length:', queueRes.body.queue ? queueRes.body.queue.length : 0);
@@ -187,14 +194,16 @@ setInterval(async () => {
       sendUpdate(update);
     } catch (error) {
       console.error('Error polling for WS:', error);
+      consecutiveErrors++;
+
       // Add specific handling for rate limits
       if (error.statusCode === 429) {
-        console.log('Rate limited during polling, will retry on next interval');
-        lastApiCall = Date.now(); // Reset timer on rate limit
+        console.log('Rate limited during polling, slowing down...');
+        lastApiCall = Date.now() + 30000; // Add 30 second penalty
       }
     }
   }
-}, 15000); // Poll every 15 seconds to reduce API load
+}, 30000); // Poll every 30 seconds to reduce API load
 
 // OAuth routes
 app.get('/auth/login', (req, res) => {
@@ -239,6 +248,11 @@ app.get('/callback', async (req, res) => {
 const albumCache = new Map();
 const CACHE_DURATION = 3600000; // 1 hour
 
+// Rate limiting for album requests
+const albumRequestTimes = new Map();
+const ALBUM_REQUEST_LIMIT = 10; // Max 10 album requests per minute
+const ALBUM_REQUEST_WINDOW = 60000; // 1 minute window
+
 // Clear old cache entries periodically
 setInterval(() => {
   const now = Date.now();
@@ -250,8 +264,43 @@ setInterval(() => {
   console.log(`Cache cleanup: ${albumCache.size} entries remaining`);
 }, 600000); // Clean up every 10 minutes
 
+// Clean up old request times
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, times] of albumRequestTimes.entries()) {
+    const recentTimes = times.filter(time => now - time < ALBUM_REQUEST_WINDOW);
+    if (recentTimes.length === 0) {
+      albumRequestTimes.delete(key);
+    } else {
+      albumRequestTimes.set(key, recentTimes);
+    }
+  }
+}, 30000); // Clean up every 30 seconds
+
 // Routes
 app.get('/api/albums', async (req, res) => {
+  const clientIP = req.ip || req.connection.remoteAddress;
+  const now = Date.now();
+
+  // Check rate limit
+  const requestTimes = albumRequestTimes.get(clientIP) || [];
+  const recentRequests = requestTimes.filter(time => now - time < ALBUM_REQUEST_WINDOW);
+
+  if (recentRequests.length >= ALBUM_REQUEST_LIMIT) {
+    console.log(`Rate limit exceeded for ${clientIP}, returning cached data`);
+    const cachedAlbums = [];
+    for (const album of albums) {
+      const cacheKey = `album_${album.id}`;
+      const cached = albumCache.get(cacheKey);
+      cachedAlbums.push(cached ? cached.data : album);
+    }
+    return res.json(cachedAlbums);
+  }
+
+  // Add this request to the tracking
+  recentRequests.push(now);
+  albumRequestTimes.set(clientIP, recentRequests);
+
   try {
     const enrichedAlbums = [];
     for (const album of albums) {
@@ -264,6 +313,7 @@ app.get('/api/albums', async (req, res) => {
       }
 
       try {
+        console.log(`Fetching album ${album.id} from Spotify API`);
         const data = await spotifyApiClient.getAlbum(album.id, { market: 'US' });
         const enrichedAlbum = {
           ...album,
@@ -271,16 +321,17 @@ app.get('/api/albums', async (req, res) => {
         };
         albumCache.set(cacheKey, { data: enrichedAlbum, timestamp: Date.now() });
         enrichedAlbums.push(enrichedAlbum);
+        console.log(`Successfully cached album ${album.id}`);
 
         // Add small delay between requests to avoid rate limits
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 200));
       } catch (error) {
         if (error.statusCode === 429) {
-          console.log('Rate limited, using cached or fallback data for album:', album.id);
+          console.log(`Rate limited fetching album ${album.id}, using cached data`);
           enrichedAlbums.push(cached ? cached.data : album);
           continue;
         }
-        console.error('Error fetching album:', album.id, error);
+        console.error(`Error fetching album ${album.id}:`, error.message);
         enrichedAlbums.push(album);
       }
     }
@@ -295,6 +346,29 @@ app.get('/api/albums', async (req, res) => {
 
 app.get('/api/album/:id', async (req, res) => {
   const albumId = req.params.id;
+  const clientIP = req.ip || req.connection.remoteAddress;
+  const now = Date.now();
+
+  // Check rate limit for individual album requests
+  const requestTimes = albumRequestTimes.get(clientIP) || [];
+  const recentRequests = requestTimes.filter(time => now - time < ALBUM_REQUEST_WINDOW);
+
+  if (recentRequests.length >= ALBUM_REQUEST_LIMIT) {
+    console.log(`Rate limit exceeded for ${clientIP} on album ${albumId}`);
+    const cacheKey = `album_tracks_${albumId}`;
+    const cached = albumCache.get(cacheKey);
+    if (cached) {
+      return res.json(cached.data);
+    } else {
+      const album = albums.find(a => a.id === albumId);
+      return res.json(album || { error: 'Album not found' });
+    }
+  }
+
+  // Add this request to the tracking
+  recentRequests.push(now);
+  albumRequestTimes.set(clientIP, recentRequests);
+
   const cacheKey = `album_tracks_${albumId}`;
   const cached = albumCache.get(cacheKey);
 
@@ -303,6 +377,7 @@ app.get('/api/album/:id', async (req, res) => {
   }
 
   try {
+    console.log(`Fetching album details and tracks for ${albumId} from Spotify API`);
     // Get album details and tracks in parallel
     const [albumData, tracksData] = await Promise.all([
       spotifyApiClient.getAlbum(albumId, { market: 'US' }),
@@ -323,6 +398,7 @@ app.get('/api/album/:id', async (req, res) => {
     };
 
     albumCache.set(cacheKey, { data: album, timestamp: Date.now() });
+    console.log(`Successfully cached album ${albumId} with ${album.tracks.length} tracks`);
     res.json(album);
   } catch (error) {
     if (error.statusCode === 429) {
@@ -646,12 +722,25 @@ app.get('/api/search', async (req, res) => {
 
 // Debug endpoint to check cache and API status
 app.get('/api/debug', (req, res) => {
+  const now = Date.now();
+  const cacheInfo = Array.from(albumCache.entries()).map(([key, value]) => ({
+    key,
+    age: Math.round((now - value.timestamp) / 1000),
+    ageMinutes: Math.round((now - value.timestamp) / 60000)
+  }));
+
   res.json({
     cacheSize: albumCache.size,
-    cacheEntries: Array.from(albumCache.keys()),
+    cacheEntries: cacheInfo,
     lastApiCall: lastApiCall,
+    timeSinceLastApiCall: Math.round((now - lastApiCall) / 1000),
     accessToken: !!accessToken,
-    clientToken: !!spotifyApiClient.getAccessToken()
+    clientToken: !!spotifyApiClient.getAccessToken(),
+    consecutiveErrors,
+    rateLimitTracking: {
+      totalTrackedIPs: albumRequestTimes.size,
+      currentIP: req.ip || req.connection.remoteAddress
+    }
   });
 });
 
