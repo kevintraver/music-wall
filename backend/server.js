@@ -223,17 +223,43 @@ async function updateAlbumsWithTracks() {
 
         // Small delay to avoid rate limits
         await new Promise(resolve => setTimeout(resolve, 200));
-      } catch (error) {
-        console.error(`Failed to update tracks for "${album.name}":`, error.message);
-        if (error.statusCode === 429) {
-          console.log('⚠️  Rate limited, adding longer delay...');
-          await new Promise(resolve => setTimeout(resolve, 5000));
-        }
-        if (error.statusCode === 401) {
-          console.log('⚠️  Token expired, re-authenticating...');
-          await authenticateSpotify();
-        }
-      }
+       } catch (error) {
+         console.error(`Failed to update tracks for "${album.name}":`, error.message);
+         if (error.statusCode === 429) {
+           const shouldRetry = await handleRateLimitError(error, `album track update for "${album.name}"`);
+           if (shouldRetry) {
+             // Retry the operation after rate limit delay
+             try {
+               const tracksData = await spotifyApiClient.getAlbumTracks(album.id, { market: 'US', limit: 50 });
+               if (!tracksData.body || !tracksData.body.items) {
+                 console.error(`Invalid response for album "${album.name}":`, tracksData.body);
+                 continue;
+               }
+
+               const tracks = tracksData.body.items.map(track => ({
+                 id: track.id,
+                 name: track.name,
+                 duration_ms: track.duration_ms,
+                 artist: track.artists[0]?.name || album.artist,
+                 track_number: track.track_number,
+                 disc_number: track.disc_number
+               }));
+
+               albums[i] = {
+                 ...album,
+                 tracks: tracks
+               };
+               updatedCount++;
+               console.log(`✅ Updated "${album.name}" with ${tracks.length} tracks (after retry)`);
+             } catch (retryError) {
+               console.error(`Retry failed for "${album.name}":`, retryError.message);
+             }
+           }
+         } else if (error.statusCode === 401) {
+           console.log('⚠️  Token expired, re-authenticating...');
+           await authenticateSpotify();
+         }
+       }
     }
   }
 
@@ -291,6 +317,150 @@ const MIN_API_INTERVAL = 5000; // Minimum 5 seconds between API calls
 let consecutiveErrors = 0;
 const MAX_CONSECUTIVE_ERRORS = 3;
 
+// Circuit breaker for API calls
+let circuitBreakerState = 'CLOSED'; // CLOSED, OPEN, HALF_OPEN
+let circuitBreakerFailures = 0;
+let circuitBreakerLastFailure = 0;
+const CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5;
+const CIRCUIT_BREAKER_TIMEOUT = 60000; // 1 minute timeout when open
+
+function checkCircuitBreaker() {
+  const now = Date.now();
+
+  if (circuitBreakerState === 'OPEN') {
+    if (now - circuitBreakerLastFailure > CIRCUIT_BREAKER_TIMEOUT) {
+      console.log('Circuit breaker transitioning to HALF_OPEN');
+      circuitBreakerState = 'HALF_OPEN';
+      return true; // Allow one request to test
+    }
+    return false; // Circuit is open, reject request
+  }
+
+  return true; // Circuit is closed or half-open, allow request
+}
+
+function recordCircuitBreakerResult(success) {
+  if (success) {
+    if (circuitBreakerState === 'HALF_OPEN') {
+      console.log('Circuit breaker transitioning to CLOSED');
+      circuitBreakerState = 'CLOSED';
+      circuitBreakerFailures = 0;
+    }
+  } else {
+    circuitBreakerFailures++;
+    circuitBreakerLastFailure = Date.now();
+
+    if (circuitBreakerFailures >= CIRCUIT_BREAKER_FAILURE_THRESHOLD) {
+      console.log('Circuit breaker transitioning to OPEN');
+      circuitBreakerState = 'OPEN';
+    }
+  }
+}
+
+// Endpoint-specific rate limiting
+const endpointLimits = {
+  'getAlbum': { calls: 0, windowStart: Date.now(), limit: 20, window: 30000 }, // 20 calls per 30s
+  'getAlbumTracks': { calls: 0, windowStart: Date.now(), limit: 20, window: 30000 },
+  'searchAlbums': { calls: 0, windowStart: Date.now(), limit: 10, window: 30000 }, // 10 calls per 30s
+  'getMyCurrentPlayingTrack': { calls: 0, windowStart: Date.now(), limit: 3, window: 3000 }, // 3 calls per 3s
+  'getMyCurrentPlaybackState': { calls: 0, windowStart: Date.now(), limit: 3, window: 3000 },
+  'getMyDevices': { calls: 0, windowStart: Date.now(), limit: 5, window: 30000 },
+  'addToQueue': { calls: 0, windowStart: Date.now(), limit: 5, window: 30000 }
+};
+
+function checkEndpointRateLimit(endpoint) {
+  const now = Date.now();
+  const limit = endpointLimits[endpoint];
+
+  if (!limit) return true; // No limit defined for this endpoint
+
+  // Reset window if needed
+  if (now - limit.windowStart >= limit.window) {
+    limit.calls = 0;
+    limit.windowStart = now;
+  }
+
+  // Check if we're within limits
+  if (limit.calls >= limit.limit) {
+    const waitTime = limit.window - (now - limit.windowStart);
+    console.log(`Endpoint ${endpoint} rate limited: ${limit.calls}/${limit.limit} calls in window, wait ${waitTime}ms`);
+    return waitTime;
+  }
+
+  return true;
+}
+
+function recordEndpointCall(endpoint) {
+  const limit = endpointLimits[endpoint];
+  if (limit) {
+    limit.calls++;
+  }
+}
+
+// Rate limit handling utilities
+function getRetryAfterDelay(error) {
+  if (error.statusCode === 429) {
+    // Check for Retry-After header (in seconds)
+    const retryAfter = error.headers?.['retry-after'];
+    if (retryAfter) {
+      const delay = parseInt(retryAfter) * 1000; // Convert to milliseconds
+      // Add jitter (±25%) to prevent thundering herd
+      const jitter = delay * 0.25 * (Math.random() * 2 - 1);
+      const finalDelay = Math.max(1000, delay + jitter); // Minimum 1 second
+      console.log(`Rate limited: Spotify suggests waiting ${delay}ms, using ${Math.round(finalDelay)}ms with jitter`);
+      return finalDelay;
+    }
+    // Fallback to exponential backoff with jitter if no Retry-After header
+    const baseDelay = Math.min(30000, 1000 * Math.pow(2, consecutiveErrors)); // Max 30 seconds
+    const jitter = baseDelay * 0.1 * (Math.random() * 2 - 1); // ±10% jitter
+    const finalDelay = Math.max(1000, baseDelay + jitter);
+    console.log(`Rate limited: Using exponential backoff ${Math.round(finalDelay)}ms with jitter`);
+    return finalDelay;
+  }
+  return 0;
+}
+
+function categorizeError(error) {
+  if (error.statusCode) {
+    switch (error.statusCode) {
+      case 429:
+        return 'RATE_LIMIT';
+      case 401:
+        return 'UNAUTHORIZED';
+      case 403:
+        return 'FORBIDDEN';
+      case 404:
+        return 'NOT_FOUND';
+      case 500:
+      case 502:
+      case 503:
+        return 'SERVER_ERROR';
+      default:
+        return 'CLIENT_ERROR';
+    }
+  }
+  return 'NETWORK_ERROR';
+}
+
+async function handleRateLimitError(error, operation = 'API call') {
+  const errorType = categorizeError(error);
+
+  if (errorType === 'RATE_LIMIT') {
+    const delay = getRetryAfterDelay(error);
+    if (delay > 0) {
+      console.log(`Rate limited during ${operation}, waiting ${delay}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return true; // Indicates we should retry
+    }
+  } else if (errorType === 'UNAUTHORIZED') {
+    console.log(`Authentication error during ${operation}, may need to refresh token`);
+  } else if (errorType === 'SERVER_ERROR') {
+    console.log(`Server error during ${operation}, may be temporary`);
+  }
+
+  return false; // Don't retry
+}
+
 // Poll for now playing and queue, send to WS clients
 setInterval(async () => {
   if (accessToken) {
@@ -304,45 +474,78 @@ setInterval(async () => {
     }
 
     try {
-      console.log('Polling for updates...');
-      const [nowPlayingRes, queueRes] = await Promise.all([
-        spotifyApi.getMyCurrentPlayingTrack(),
-        spotifyApi.getMyCurrentPlaybackState()
-      ]);
-      lastApiCall = Date.now();
-      consecutiveErrors = 0; // Reset error count on success
+       console.log('Polling for updates...');
 
-      console.log('Now playing:', nowPlayingRes.body.item ? nowPlayingRes.body.item.name : 'None');
-      console.log('Queue length:', queueRes.body.queue ? queueRes.body.queue.length : 0);
-      const update = {
-        nowPlaying: nowPlayingRes.body.item ? {
-          id: nowPlayingRes.body.item.id,
-          name: nowPlayingRes.body.item.name,
-          artist: nowPlayingRes.body.item.artists[0].name,
-          album: nowPlayingRes.body.item.album.name,
-          image: nowPlayingRes.body.item.album.images[0]?.url
-        } : null,
-        isPlaying: nowPlayingRes.body.is_playing || false,
-        queue: queueRes.body.queue ? queueRes.body.queue.slice(0, 10).map(track => ({
-          id: track.id,
-          name: track.name,
-          artist: track.artists[0].name,
-          album: track.album.name,
-          image: track.album.images[0]?.url
-        })) : []
-      };
-      console.log('Sending WS update with queue:', update.queue.length, 'tracks');
-      sendUpdate(update);
-    } catch (error) {
-      console.error('Error polling for WS:', error);
-      consecutiveErrors++;
+       // Check circuit breaker
+       if (!checkCircuitBreaker()) {
+         console.log('Circuit breaker is OPEN, skipping polling');
+         return;
+       }
 
-      // Add specific handling for rate limits
-      if (error.statusCode === 429) {
-        console.log('Rate limited during polling, slowing down...');
-        lastApiCall = Date.now() + 30000; // Add 30 second penalty
-      }
-    }
+       // Check rate limits for polling endpoints
+       const nowPlayingLimit = checkEndpointRateLimit('getMyCurrentPlayingTrack');
+       const playbackLimit = checkEndpointRateLimit('getMyCurrentPlaybackState');
+
+       if (nowPlayingLimit !== true || playbackLimit !== true) {
+         const waitTime = Math.max(
+           nowPlayingLimit === true ? 0 : nowPlayingLimit,
+           playbackLimit === true ? 0 : playbackLimit
+         );
+         console.log(`Polling rate limited, waiting ${waitTime}ms`);
+         lastApiCall = Date.now() + waitTime;
+         return;
+       }
+
+       const [nowPlayingRes, queueRes] = await Promise.all([
+         spotifyApi.getMyCurrentPlayingTrack(),
+         spotifyApi.getMyCurrentPlaybackState()
+       ]);
+
+       // Record successful calls
+       recordEndpointCall('getMyCurrentPlayingTrack');
+       recordEndpointCall('getMyCurrentPlaybackState');
+       recordCircuitBreakerResult(true); // Success
+
+       lastApiCall = Date.now();
+       consecutiveErrors = 0; // Reset error count on success
+
+       console.log('Now playing:', nowPlayingRes.body.item ? nowPlayingRes.body.item.name : 'None');
+       console.log('Queue length:', queueRes.body.queue ? queueRes.body.queue.length : 0);
+       const update = {
+         nowPlaying: nowPlayingRes.body.item ? {
+           id: nowPlayingRes.body.item.id,
+           name: nowPlayingRes.body.item.name,
+           artist: nowPlayingRes.body.item.artists[0].name,
+           album: nowPlayingRes.body.item.album.name,
+           image: nowPlayingRes.body.item.album.images[0]?.url
+         } : null,
+         isPlaying: nowPlayingRes.body.is_playing || false,
+         queue: queueRes.body.queue ? queueRes.body.queue.slice(0, 10).map(track => ({
+           id: track.id,
+           name: track.name,
+           artist: track.artists[0].name,
+           album: track.album.name,
+           image: track.album.images[0]?.url
+         })) : []
+       };
+       console.log('Sending WS update with queue:', update.queue.length, 'tracks');
+       sendUpdate(update);
+     } catch (error) {
+       console.error('Error polling for WS:', error);
+       consecutiveErrors++;
+       recordCircuitBreakerResult(false); // Failure
+
+       // Add specific handling for rate limits
+       if (error.statusCode === 429) {
+         const delay = getRetryAfterDelay(error);
+         if (delay > 0) {
+           console.log(`Rate limited during polling, waiting ${delay}ms...`);
+           lastApiCall = Date.now() + delay;
+         } else {
+           lastApiCall = Date.now() + 30000; // Fallback 30 second penalty
+         }
+       }
+     }
   }
 }, 30000); // Poll every 30 seconds to reduce API load
 
@@ -464,29 +667,59 @@ app.get('/api/albums', async (req, res) => {
         continue;
       }
 
-      // Only fetch from Spotify API if we don't have an image
-      try {
-        console.log(`Fetching missing image for album ${album.id} from Spotify API`);
-        const data = await spotifyApiClient.getAlbum(album.id, { market: 'US' });
-        const enrichedAlbum = {
-          ...album,
-          image: data.body.images[0]?.url || album.image
-        };
-        albumCache.set(cacheKey, { data: enrichedAlbum, timestamp: Date.now() });
-        enrichedAlbums.push(enrichedAlbum);
-        console.log(`Successfully cached album ${album.id} with fresh image`);
+       // Only fetch from Spotify API if we don't have an image
+       try {
+         // Check rate limit for getAlbum endpoint
+         const rateLimitCheck = checkEndpointRateLimit('getAlbum');
+         if (rateLimitCheck !== true) {
+           console.log(`Rate limited fetching album ${album.id}, using local data`);
+           enrichedAlbums.push(album);
+           continue;
+         }
 
-        // Add small delay between requests to avoid rate limits
-        await new Promise(resolve => setTimeout(resolve, 200));
-      } catch (error) {
-        if (error.statusCode === 429) {
-          console.log(`Rate limited fetching album ${album.id}, using local data`);
-          enrichedAlbums.push(album); // Use local data as fallback
-          continue;
-        }
-        console.error(`Error fetching album ${album.id}:`, error.message);
-        enrichedAlbums.push(album); // Use local data as fallback
-      }
+         console.log(`Fetching missing image for album ${album.id} from Spotify API`);
+         const data = await spotifyApiClient.getAlbum(album.id, { market: 'US' });
+         const enrichedAlbum = {
+           ...album,
+           image: data.body.images[0]?.url || album.image
+         };
+
+         // Record successful call
+         recordEndpointCall('getAlbum');
+
+         albumCache.set(cacheKey, { data: enrichedAlbum, timestamp: Date.now() });
+         enrichedAlbums.push(enrichedAlbum);
+         console.log(`Successfully cached album ${album.id} with fresh image`);
+
+         // Add small delay between requests to avoid rate limits
+         await new Promise(resolve => setTimeout(resolve, 200));
+       } catch (error) {
+         if (error.statusCode === 429) {
+           const shouldRetry = await handleRateLimitError(error, `album fetch for ${album.id}`);
+           if (shouldRetry) {
+             // Retry the operation
+             try {
+               const data = await spotifyApiClient.getAlbum(album.id, { market: 'US' });
+               const enrichedAlbum = {
+                 ...album,
+                 image: data.body.images[0]?.url || album.image
+               };
+               albumCache.set(cacheKey, { data: enrichedAlbum, timestamp: Date.now() });
+               enrichedAlbums.push(enrichedAlbum);
+               console.log(`Successfully cached album ${album.id} with fresh image (after retry)`);
+             } catch (retryError) {
+               console.log(`Rate limited fetching album ${album.id}, using local data`);
+               enrichedAlbums.push(album); // Use local data as fallback
+             }
+           } else {
+             console.log(`Rate limited fetching album ${album.id}, using local data`);
+             enrichedAlbums.push(album); // Use local data as fallback
+           }
+         } else {
+           console.error(`Error fetching album ${album.id}:`, error.message);
+           enrichedAlbums.push(album); // Use local data as fallback
+         }
+       }
     }
 
     // Log summary of data sources
@@ -569,11 +802,28 @@ app.get('/api/album/:id', async (req, res) => {
       await authenticateSpotify();
     }
 
+    // Check rate limits for both endpoints
+    const albumLimit = checkEndpointRateLimit('getAlbum');
+    const tracksLimit = checkEndpointRateLimit('getAlbumTracks');
+
+    if (albumLimit !== true || tracksLimit !== true) {
+      console.log(`Rate limited fetching album details for ${albumId}, using cached data`);
+      if (cached) {
+        return res.json(cached.data);
+      }
+      const album = albums.find(a => a.id === albumId);
+      return res.json(album || { error: 'Album not found' });
+    }
+
     // Get album details and tracks in parallel
     const [albumData, tracksData] = await Promise.all([
       spotifyApiClient.getAlbum(albumId, { market: 'US' }),
       spotifyApiClient.getAlbumTracks(albumId, { market: 'US', limit: 50 })
     ]);
+
+    // Record successful calls
+    recordEndpointCall('getAlbum');
+    recordEndpointCall('getAlbumTracks');
 
     const tracks = tracksData.body.items.map(track => ({
       id: track.id,
@@ -607,29 +857,66 @@ app.get('/api/album/:id', async (req, res) => {
     albumCache.set(cacheKey, { data: album, timestamp: Date.now() });
     console.log(`Successfully cached album ${albumId} with ${album.tracks.length} tracks`);
     res.json(album);
-  } catch (error) {
-    if (error.statusCode === 429) {
-      console.log('Rate limited, using cached or fallback data for album:', albumId);
-      if (cached) {
-        return res.json(cached.data);
-      }
-    }
+   } catch (error) {
+     if (error.statusCode === 429) {
+       const shouldRetry = await handleRateLimitError(error, `album details fetch for ${albumId}`);
+       if (shouldRetry) {
+         // Retry the operation
+         try {
+           const [albumData, tracksData] = await Promise.all([
+             spotifyApiClient.getAlbum(albumId, { market: 'US' }),
+             spotifyApiClient.getAlbumTracks(albumId, { market: 'US', limit: 50 })
+           ]);
 
-    console.error('Error fetching album:', albumId, error);
-    console.error('Error details:', {
-      statusCode: error.statusCode,
-      message: error.message,
-      body: error.body
-    });
+           const tracks = tracksData.body.items.map(track => ({
+             id: track.id,
+             name: track.name,
+             duration_ms: track.duration_ms,
+             artist: track.artists[0]?.name || albumData.body.artists[0].name,
+             track_number: track.track_number,
+             disc_number: track.disc_number
+           }));
 
-    // Fallback to JSON
-    const album = albums.find(a => a.id === albumId);
-    if (album) {
-      res.json(album);
-    } else {
-      res.status(404).json({ error: 'Album not found' });
-    }
-  }
+           const album = {
+             id: albumData.body.id,
+             name: albumData.body.name,
+             artist: albumData.body.artists[0].name,
+             image: albumData.body.images[0]?.url || localAlbum.image,
+             tracks: tracks
+           };
+
+           albumCache.set(cacheKey, { data: album, timestamp: Date.now() });
+           console.log(`Successfully cached album ${albumId} with ${album.tracks.length} tracks (after retry)`);
+           return res.json(album);
+         } catch (retryError) {
+           console.log('Rate limited, using cached or fallback data for album:', albumId);
+           if (cached) {
+             return res.json(cached.data);
+           }
+         }
+       } else {
+         console.log('Rate limited, using cached or fallback data for album:', albumId);
+         if (cached) {
+           return res.json(cached.data);
+         }
+       }
+     }
+
+     console.error('Error fetching album:', albumId, error);
+     console.error('Error details:', {
+       statusCode: error.statusCode,
+       message: error.message,
+       body: error.body
+     });
+
+     // Fallback to JSON
+     const album = albums.find(a => a.id === albumId);
+     if (album) {
+       res.json(album);
+     } else {
+       res.status(404).json({ error: 'Album not found' });
+     }
+   }
 });
 
 app.post('/api/queue', async (req, res) => {
@@ -640,6 +927,14 @@ app.post('/api/queue', async (req, res) => {
   }
   const { trackId } = req.body;
   try {
+    // Check rate limits for queue operations
+    const devicesLimit = checkEndpointRateLimit('getMyDevices');
+    const queueLimit = checkEndpointRateLimit('addToQueue');
+
+    if (devicesLimit !== true || queueLimit !== true) {
+      return res.status(429).json({ error: 'Rate limited, please try again later.' });
+    }
+
     // Get available devices
     const devices = await spotifyApi.getMyDevices();
     console.log('Devices found:', devices.body.devices.length);
@@ -652,6 +947,11 @@ app.post('/api/queue', async (req, res) => {
 
     // Add track to queue
     await spotifyApi.addToQueue(`spotify:track:${trackId}`, { device_id: activeDevice.id });
+
+    // Record successful calls
+    recordEndpointCall('getMyDevices');
+    recordEndpointCall('addToQueue');
+
     console.log('Track added to queue successfully');
     res.json({ success: true });
   } catch (error) {
@@ -913,6 +1213,13 @@ app.get('/api/search', async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json([]);
   try {
+    // Check rate limit for search endpoint
+    const rateLimitCheck = checkEndpointRateLimit('searchAlbums');
+    if (rateLimitCheck !== true) {
+      console.log('Rate limited during search, returning empty results');
+      return res.json([]);
+    }
+
     const data = await spotifyApiClient.searchAlbums(query, { limit: 10, market: 'US' });
     const results = data.body.albums.items.map(album => ({
       id: album.id,
@@ -920,15 +1227,37 @@ app.get('/api/search', async (req, res) => {
       artist: album.artists[0].name,
       image: album.images[0]?.url
     }));
+
+    // Record successful call
+    recordEndpointCall('searchAlbums');
+
     res.json(results);
   } catch (error) {
-    if (error.statusCode === 429) {
-      console.log('Rate limited during search, returning empty results');
-      return res.json([]);
-    }
-    console.error('Search error:', error);
-    res.json([]);
-  }
+     if (error.statusCode === 429) {
+       const shouldRetry = await handleRateLimitError(error, 'album search');
+       if (shouldRetry) {
+         // Retry the search operation
+         try {
+           const data = await spotifyApiClient.searchAlbums(query, { limit: 10, market: 'US' });
+           const results = data.body.albums.items.map(album => ({
+             id: album.id,
+             name: album.name,
+             artist: album.artists[0].name,
+             image: album.images[0]?.url
+           }));
+           return res.json(results);
+         } catch (retryError) {
+           console.log('Rate limited during search retry, returning empty results');
+           return res.json([]);
+         }
+       } else {
+         console.log('Rate limited during search, returning empty results');
+         return res.json([]);
+       }
+     }
+     console.error('Search error:', error);
+     res.json([]);
+   }
 });
 
 // Debug endpoint to check cache and API status
@@ -1043,31 +1372,83 @@ app.post('/api/admin/albums', async (req, res) => {
         tracksCount: completeAlbum.tracks.length
       });
 
-    } catch (error) {
-      console.error('Error fetching album data for admin add:', error);
+     } catch (error) {
+       console.error('Error fetching album data for admin add:', error);
 
-      // Fallback: add basic album data if Spotify fetch fails
-      console.log('⚠️  Falling back to basic album data');
-      const basicAlbum = {
-        ...newAlbum,
-        tracks: [] // Empty tracks array as fallback
-      };
-      albums.push(basicAlbum);
-      fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+       if (error.statusCode === 429) {
+         const shouldRetry = await handleRateLimitError(error, `admin add album ${newAlbum.name}`);
+         if (shouldRetry) {
+           // Retry the operation
+           try {
+             const [albumData, tracksData] = await Promise.all([
+               spotifyApiClient.getAlbum(newAlbum.id, { market: 'US' }),
+               spotifyApiClient.getAlbumTracks(newAlbum.id, { market: 'US', limit: 50 })
+             ]);
 
-      try {
-        sendUpdate({ type: 'albums', albums });
-      } catch (e) {
-        console.error('WS broadcast failed after add:', e);
-      }
+             if (!albumData.body || !tracksData.body || !tracksData.body.items) {
+               throw new Error('Invalid response from Spotify API');
+             }
 
-      res.json({
-        success: true,
-        album: basicAlbum,
-        tracksCount: 0,
-        warning: 'Album added with basic data only (Spotify fetch failed)'
-      });
-    }
+             const completeAlbum = {
+               id: albumData.body.id,
+               name: albumData.body.name,
+               artist: albumData.body.artists[0].name,
+               image: albumData.body.images[0]?.url || newAlbum.image,
+               position: newAlbum.position || albums.length,
+               tracks: tracksData.body.items.map(track => ({
+                 id: track.id,
+                 name: track.name,
+                 duration_ms: track.duration_ms,
+                 artist: track.artists[0]?.name || albumData.body.artists[0].name,
+                 track_number: track.track_number,
+                 disc_number: track.disc_number
+               }))
+             };
+
+             albums.push(completeAlbum);
+             console.log(`✅ Added album "${completeAlbum.name}" with ${completeAlbum.tracks.length} tracks (after retry)`);
+
+             fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+
+             try {
+               sendUpdate({ type: 'albums', albums });
+             } catch (e) {
+               console.error('WS broadcast failed after add:', e);
+             }
+
+             return res.json({
+               success: true,
+               album: completeAlbum,
+               tracksCount: completeAlbum.tracks.length
+             });
+           } catch (retryError) {
+             console.error('Retry failed for admin add:', retryError);
+           }
+         }
+       }
+
+       // Fallback: add basic album data if Spotify fetch fails
+       console.log('⚠️  Falling back to basic album data');
+       const basicAlbum = {
+         ...newAlbum,
+         tracks: [] // Empty tracks array as fallback
+       };
+       albums.push(basicAlbum);
+       fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+
+       try {
+         sendUpdate({ type: 'albums', albums });
+       } catch (e) {
+         console.error('WS broadcast failed after add:', e);
+       }
+
+       res.json({
+         success: true,
+         album: basicAlbum,
+         tracksCount: 0,
+         warning: 'Album added with basic data only (Spotify fetch failed)'
+       });
+     }
   } else {
     res.status(400).json({ error: 'Album already exists' });
   }
