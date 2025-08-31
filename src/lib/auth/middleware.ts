@@ -7,9 +7,12 @@ export function withAuth<T extends any[]>(
 ) {
   return async (request: NextRequest, ...args: T) => {
     try {
-      const { accessToken } = getTokens();
+      // Prefer tokens passed via headers (client supplies from localStorage)
+      const headerAccessToken = request.headers.get('x-spotify-access-token') || '';
+      const clientAccessToken = getTokens().accessToken || '';
+      const effectiveAccessToken = headerAccessToken || clientAccessToken || '';
 
-      if (!accessToken) {
+      if (!effectiveAccessToken) {
         return NextResponse.json(
           { error: 'Authentication required' },
           { status: 401 }
@@ -21,7 +24,7 @@ export function withAuth<T extends any[]>(
         ...request,
         headers: new Headers({
           ...Object.fromEntries(request.headers.entries()),
-          'x-spotify-access-token': accessToken,
+          'x-spotify-access-token': effectiveAccessToken,
         }),
       });
 
@@ -51,13 +54,15 @@ export function withAdminAuth<T extends any[]>(
 export function withOptionalAuth(handler: (request: NextRequest) => Promise<NextResponse> | NextResponse) {
   return async (request: NextRequest) => {
     try {
-      const { accessToken } = getTokens();
+      const { accessToken: clientAccess } = getTokens();
+      const headerAccess = request.headers.get('x-spotify-access-token') || '';
+      const effective = headerAccess || clientAccess || '';
 
       const requestWithAuth = new NextRequest(request.url, {
         ...request,
         headers: new Headers({
           ...Object.fromEntries(request.headers.entries()),
-          ...(accessToken && { 'x-spotify-access-token': accessToken }),
+          ...(effective && { 'x-spotify-access-token': effective }),
         }),
       });
 

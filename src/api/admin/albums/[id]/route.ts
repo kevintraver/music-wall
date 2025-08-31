@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAdminAuth, withRateLimit } from '@/lib/auth/middleware';
-import { getAlbums, saveAlbumsToStorage, removeAlbum as removeAlbumFromStorage } from '@/lib/utils/localStorage';
+import { readAlbumsFromFile, writeAlbumsToFile } from '@/lib/utils/albums-file';
 import { Album } from '@/websocket/types';
 
 // GET /api/admin/albums/[id] - Get single album
@@ -9,7 +9,7 @@ export const GET = withAdminAuth(async (
   { params }: { params: { id: string } }
 ) => {
   try {
-    const albums = await getAlbums();
+    const albums = readAlbumsFromFile();
     const album = albums.find((a: Album) => a.id === params.id);
 
     if (!album) {
@@ -40,7 +40,7 @@ export const PUT = withRateLimit(
   ) => {
     try {
       const updateData: Partial<Album> = await request.json();
-      const existingAlbums = await getAlbums();
+      const existingAlbums = readAlbumsFromFile();
 
       const albumIndex = existingAlbums.findIndex((album: Album) => album.id === params.id);
       if (albumIndex === -1) {
@@ -54,14 +54,11 @@ export const PUT = withRateLimit(
       const updatedAlbum = { ...existingAlbums[albumIndex], ...updateData };
       existingAlbums[albumIndex] = updatedAlbum;
 
-      saveAlbumsToStorage(existingAlbums);
+      writeAlbumsToFile(existingAlbums);
 
       // Broadcast update via WebSocket
       if (global.sendWebSocketUpdate) {
-        global.sendWebSocketUpdate({
-          type: 'albums',
-          payload: existingAlbums
-        });
+        global.sendWebSocketUpdate({ type: 'albums', payload: existingAlbums });
       }
 
       console.log(`✅ Updated album "${updatedAlbum.name}"`);
@@ -88,7 +85,7 @@ export const DELETE = withAdminAuth(async (
   { params }: { params: { id: string } }
 ) => {
   try {
-    const existingAlbums = await getAlbums();
+    const existingAlbums = readAlbumsFromFile();
     const albumToDelete = existingAlbums.find((album: Album) => album.id === params.id);
 
     if (!albumToDelete) {
@@ -98,14 +95,14 @@ export const DELETE = withAdminAuth(async (
       );
     }
 
-    const updatedAlbums = removeAlbumFromStorage(params.id);
+    const updatedAlbums = existingAlbums
+      .filter((album: Album) => album.id !== params.id)
+      .map((album: Album, index: number) => ({ ...album, position: index }));
+    writeAlbumsToFile(updatedAlbums);
 
     // Broadcast update via WebSocket
     if (global.sendWebSocketUpdate) {
-      global.sendWebSocketUpdate({
-        type: 'albums',
-        payload: updatedAlbums
-      });
+      global.sendWebSocketUpdate({ type: 'albums', payload: updatedAlbums });
     }
 
     console.log(`✅ Deleted album "${albumToDelete.name}"`);

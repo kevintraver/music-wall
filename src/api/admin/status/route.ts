@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAdminAuth } from '@/lib/auth/middleware';
-import { getTokens } from '@/lib/auth/tokens';
 import SpotifyWebApi from 'spotify-web-api-node';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI } from '@/lib/utils/env';
 
@@ -14,7 +13,9 @@ const spotifyApi = new SpotifyWebApi({
 // GET /api/admin/status - Check admin authentication and Spotify connection status
 export const GET = withAdminAuth(async (request: NextRequest) => {
   try {
-    const { accessToken, refreshToken } = getTokens();
+    // Read tokens from headers supplied by the client
+    const accessToken = request.headers.get('x-spotify-access-token') || '';
+    const refreshToken = request.headers.get('x-spotify-refresh-token') || '';
 
     const status: any = {
       authenticated: !!accessToken,

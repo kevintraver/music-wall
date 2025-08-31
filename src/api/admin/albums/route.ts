@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAdminAuth, withRateLimit } from '@/lib/auth/middleware';
-import { getAlbums, saveAlbumsToStorage, addAlbum as addAlbumToStorage, removeAlbum as removeAlbumFromStorage } from '@/lib/utils/localStorage';
+import { readAlbumsFromFile, writeAlbumsToFile } from '@/lib/utils/albums-file';
 import { Album } from '@/websocket/types';
 
 // GET /api/admin/albums - List all albums
 export const GET = withAdminAuth(async (request: NextRequest) => {
   try {
-    const albums = await getAlbums();
+    const albums = readAlbumsFromFile();
     return NextResponse.json({
       success: true,
       data: albums,
@@ -36,7 +36,7 @@ export const POST = withRateLimit(
       }
 
       // Check if album already exists
-      const existingAlbums = await getAlbums();
+      const existingAlbums = readAlbumsFromFile();
       if (existingAlbums.some((album: Album) => album.id === albumData.id)) {
         return NextResponse.json(
           { error: 'Album already exists' },
@@ -50,14 +50,12 @@ export const POST = withRateLimit(
         position: existingAlbums.length
       };
 
-      const updatedAlbums = addAlbumToStorage(newAlbum);
+      const updatedAlbums = [...existingAlbums, newAlbum];
+      writeAlbumsToFile(updatedAlbums);
 
       // Broadcast update via WebSocket
       if (global.sendWebSocketUpdate) {
-        global.sendWebSocketUpdate({
-          type: 'albums',
-          payload: updatedAlbums
-        });
+        global.sendWebSocketUpdate({ type: 'albums', payload: updatedAlbums });
       }
 
       console.log(`✅ Added album "${newAlbum.name}" by ${newAlbum.artist}`);
@@ -93,7 +91,7 @@ export const PUT = withRateLimit(
       }
 
       const updateData: Partial<Album> = await request.json();
-      const existingAlbums = await getAlbums();
+      const existingAlbums = readAlbumsFromFile();
 
       const albumIndex = existingAlbums.findIndex((album: Album) => album.id === id);
       if (albumIndex === -1) {
@@ -107,14 +105,11 @@ export const PUT = withRateLimit(
       const updatedAlbum = { ...existingAlbums[albumIndex], ...updateData };
       existingAlbums[albumIndex] = updatedAlbum;
 
-      saveAlbumsToStorage(existingAlbums);
+      writeAlbumsToFile(existingAlbums);
 
       // Broadcast update via WebSocket
       if (global.sendWebSocketUpdate) {
-        global.sendWebSocketUpdate({
-          type: 'albums',
-          payload: existingAlbums
-        });
+        global.sendWebSocketUpdate({ type: 'albums', payload: existingAlbums });
       }
 
       console.log(`✅ Updated album "${updatedAlbum.name}"`);
@@ -148,7 +143,7 @@ export const DELETE = withAdminAuth(async (request: NextRequest) => {
       );
     }
 
-    const existingAlbums = await getAlbums();
+    const existingAlbums = readAlbumsFromFile();
     const albumToDelete = existingAlbums.find((album: Album) => album.id === id);
 
     if (!albumToDelete) {
@@ -158,14 +153,14 @@ export const DELETE = withAdminAuth(async (request: NextRequest) => {
       );
     }
 
-    const updatedAlbums = removeAlbumFromStorage(id);
+    const updatedAlbums = existingAlbums
+      .filter((album: Album) => album.id !== id)
+      .map((album: Album, index: number) => ({ ...album, position: index }));
+    writeAlbumsToFile(updatedAlbums);
 
     // Broadcast update via WebSocket
     if (global.sendWebSocketUpdate) {
-      global.sendWebSocketUpdate({
-        type: 'albums',
-        payload: updatedAlbums
-      });
+      global.sendWebSocketUpdate({ type: 'albums', payload: updatedAlbums });
     }
 
     console.log(`✅ Deleted album "${albumToDelete.name}"`);

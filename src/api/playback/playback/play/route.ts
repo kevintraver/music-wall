@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAdminAuth, withRateLimit } from '@/lib/auth/middleware';
-import { getTokens } from '@/lib/auth/tokens';
 import SpotifyWebApi from 'spotify-web-api-node';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI } from '@/lib/utils/env';
 
@@ -38,18 +37,19 @@ export const POST = withRateLimit(
     }
 
     try {
-      const { accessToken, refreshToken } = getTokens();
+      // Prefer tokens provided by client via headers
+      const headerAccess = request.headers.get('x-spotify-access-token') || '';
+      const headerRefresh = request.headers.get('x-spotify-refresh-token') || '';
 
-      // Set tokens for this request
-      if (accessToken) {
-        spotifyApi.setAccessToken(accessToken);
+      if (headerAccess) {
+        spotifyApi.setAccessToken(headerAccess);
       }
 
       // Sync tokens to WebSocket server for polling
       if (global.setSpotifyTokens) {
         global.setSpotifyTokens({
-          accessToken,
-          refreshToken
+          accessToken: headerAccess,
+          refreshToken: headerRefresh
         });
       }
 
@@ -71,7 +71,7 @@ export const POST = withRateLimit(
       if (global.sendWebSocketUpdate) {
         global.sendWebSocketUpdate({
           type: 'playback',
-          isPlaying: true
+          payload: { isPlaying: true }
         });
       }
 
