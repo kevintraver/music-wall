@@ -71,85 +71,103 @@ export default function Home() {
       {/* Now Playing and Up Next Layout */}
       <div className="shrink-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Now Playing - Left Side (2/3 width) */}
-        <div className="lg:col-span-2 bg-gray-800 rounded-2xl p-5 flex flex-col">
-          <h2 className="text-lg font-bold mb-3 text-gray-300 tracking-wider text-center">Now Playing</h2>
+        <div className="lg:col-span-2 bg-gray-800 rounded-2xl p-6 flex flex-col">
+          <div className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 text-center">
+            Now Playing
+          </div>
           <ErrorBoundary>
-            {isLoading.playback ? (
-               // Loading playback: show skeleton
-               <div className="flex flex-col items-center flex-grow text-center min-h-[clamp(6rem,12vh,8rem)]">
-                 <Skeleton className="w-[clamp(4rem,10vh,8rem)] h-[clamp(4rem,10vh,8rem)] rounded-lg" />
-                 <div className="mt-6">
-                   <Skeleton className="h-8 w-[min(16rem,60vw)] mx-auto mb-1" />
-                   <Skeleton className="h-4 w-[min(12rem,45vw)] mx-auto" />
+             <div className="flex-1 flex items-center justify-center">
+               {isLoading.playback ? (
+                 // Loading playback: show skeleton
+                 <div className="flex gap-4 items-center">
+                   <Skeleton className="w-16 h-16 rounded-lg flex-shrink-0" />
+                   <div className="flex-1">
+                     <Skeleton className="h-5 w-40 mb-1" />
+                     <Skeleton className="h-4 w-32" />
+                   </div>
                  </div>
-               </div>
-            ) : nowPlaying ? (
-               // Ready and we have a track
-               <div className="flex flex-col items-center flex-grow text-center min-h-[clamp(6rem,12vh,8rem)]">
-                {nowPlaying.image ? (
-                   <img
-                     src={nowPlaying.image}
-                     alt={nowPlaying.name}
-                     className="w-[clamp(4rem,10vh,8rem)] h-[clamp(4rem,10vh,8rem)] rounded-lg shadow-lg object-cover"
-                   />
-                ) : (
-                   <div className="w-[clamp(4rem,10vh,8rem)] h-[clamp(4rem,10vh,8rem)] rounded-lg bg-gray-700" />
-                )}
-                <div className="mt-6">
-                  <h3 className="text-2xl font-bold truncate max-w-[90vw] lg:max-w-[60vw]">
-                    {nowPlaying.name}
-                  </h3>
-                  <p className="text-sm text-gray-400 mt-1">{nowPlaying.artist}</p>
-                </div>
-              </div>
-            ) : (
-               // Ready but nothing is playing
-               <div className="flex flex-col items-center flex-grow text-center min-h-[clamp(6rem,12vh,8rem)]">
-                 <div className="w-[clamp(4rem,10vh,8rem)] h-[clamp(4rem,10vh,8rem)] rounded-lg bg-gray-700" />
-                 <div className="mt-6">
-                   <div className="h-8 w-[min(16rem,60vw)] mx-auto mb-1 bg-transparent"></div>
-                   <p className="text-base text-gray-400">No track playing</p>
+               ) : nowPlaying ? (
+                 // Ready and we have a track
+                 <div className="flex gap-4 items-center">
+                   <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 shadow-lg relative">
+                     {nowPlaying.image ? (
+                       <>
+                         <img
+                           src={nowPlaying.image}
+                           alt={nowPlaying.name}
+                           className="w-full h-full object-cover"
+                         />
+                         <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
+                       </>
+                     ) : (
+                       <div className="w-full h-full bg-gradient-to-br from-red-600 to-red-800"></div>
+                     )}
+                   </div>
+                   <div className="flex-1">
+                     <h3 className="text-lg font-semibold mb-1 leading-tight truncate">
+                       {nowPlaying.name}
+                     </h3>
+                     <p className="text-sm text-gray-400 truncate">{nowPlaying.artist}</p>
+                   </div>
                  </div>
-               </div>
-            )}
+               ) : (
+                 // Ready but nothing is playing
+                 <div className="flex gap-4 items-center">
+                   <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 shadow-lg bg-gradient-to-br from-gray-700 to-gray-800"></div>
+                   <div className="flex-1">
+                     <div className="h-5 mb-1"></div>
+                     <p className="text-sm text-gray-400">No track playing</p>
+                   </div>
+                 </div>
+               )}
+             </div>
           </ErrorBoundary>
         </div>
 
         {/* Up Next - Right Side (1/3 width) */}
-        <div className="bg-gray-800 rounded-2xl p-5 flex flex-col">
-          <h2 className="text-lg font-bold mb-3 text-gray-300 tracking-wider text-center">Up Next</h2>
+        <div className="bg-gray-800 rounded-2xl p-6 flex flex-col">
+          <div className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 text-center">
+            Up Next
+          </div>
           <ErrorBoundary>
-            <div className="flex-grow flex flex-col justify-center">
-               {isLoading.queue ? (
-                  // Loading queue: show skeleton
-                  <div className="flex items-center space-x-3 p-2 rounded-lg h-10">
-                   <Skeleton className="w-10 h-10 rounded-md" />
-                   <div className="flex-grow min-w-0">
-                     <Skeleton className="h-5 w-28 mb-1" />
-                     <Skeleton className="h-4 w-20" />
-                   </div>
-                 </div>
-               ) : upNext.length > 0 ? (
-                 // Ready and we have an upcoming track
-                 <div className="flex items-center space-x-3 p-2 rounded-lg h-10">
-                   {upNext[0]?.image ? (
-                     <img
-                       src={upNext[0].image!}
-                       alt={`Album art for the next song in the queue`}
-                       className="w-10 h-10 rounded-md object-cover"
-                     />
-                   ) : (
-                     <div className="w-10 h-10 rounded-md bg-gray-700" />
-                   )}
-                  <div className="flex-grow min-w-0">
-                    <p className="font-semibold text-base truncate">{upNext[0].name}</p>
+            <div className="flex-1 flex items-center justify-center">
+              {isLoading.queue ? (
+                // Loading queue: show skeleton
+                <div className="flex gap-4 items-center">
+                  <Skeleton className="w-16 h-16 rounded-lg flex-shrink-0" />
+                  <div className="flex-1">
+                    <Skeleton className="h-5 w-40 mb-1" />
+                    <Skeleton className="h-4 w-32" />
+                  </div>
+                </div>
+              ) : upNext.length > 0 ? (
+                // Ready and we have an upcoming track
+                <div className="flex gap-4 items-center">
+                  <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 shadow-lg relative">
+                    {upNext[0]?.image ? (
+                      <>
+                        <img
+                          src={upNext[0].image}
+                          alt={`${upNext[0].album} album cover`}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
+                      </>
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-gray-600 to-gray-800"></div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-lg font-semibold mb-1 leading-tight truncate">
+                      {upNext[0].name}
+                    </h4>
                     <p className="text-sm text-gray-400 truncate">{upNext[0].artist}</p>
                   </div>
                 </div>
               ) : (
-                 // Ready but no queue
-                 <div className="flex items-center justify-center h-10 rounded-lg">
-                  <p className="text-gray-300 text-sm">Queue is empty</p>
+                // Ready but no queue
+                <div className="flex items-center justify-center h-20">
+                  <p className="text-gray-400 text-sm">Queue is empty</p>
                 </div>
               )}
             </div>
