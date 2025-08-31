@@ -79,6 +79,8 @@ export default function Home() {
           const data = JSON.parse(event.data);
           if (data.type === 'pong') return; // Ignore pong responses
 
+          console.log('📨 WS message received:', data);
+
           // Validate message structure
           if (typeof data !== 'object' || data === null) {
             console.warn('Invalid WebSocket message format');
@@ -98,11 +100,13 @@ export default function Home() {
           if (messageType === 'playback' || ('nowPlaying' in data || 'queue' in data)) {
             // Only update nowPlaying if the payload explicitly includes the field
             if ('nowPlaying' in data) {
+              console.log('🎵 Updating now playing:', data.nowPlaying?.name || 'None');
               setNowPlaying(data.nowPlaying);
             }
             // Only update queue if it's explicitly included in the message
             if ('queue' in data) {
               const normalized = normalizeQueue(data);
+              console.log('📋 Updating queue:', normalized.length, 'tracks');
               setUpNext(normalized);
             }
             setPlaybackLoaded(true);

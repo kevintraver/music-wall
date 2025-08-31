@@ -1,6 +1,6 @@
 import WebSocket, { WebSocketServer } from 'ws';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI } from '@/lib/env';
 
@@ -48,6 +48,7 @@ function saveTokens() {
 
 // Load saved tokens
 loadTokens();
+console.log('🔑 WebSocket server token status - Access:', !!accessToken, 'Refresh:', !!refreshToken);
 
 // Spotify API setup
 const spotifyApi = new SpotifyWebApi({
@@ -59,6 +60,9 @@ const spotifyApi = new SpotifyWebApi({
 // Set access token if loaded
 if (accessToken) {
   spotifyApi.setAccessToken(accessToken);
+  console.log('✅ WebSocket server has access token');
+} else {
+  console.log('⚠️  WebSocket server has no access token - polling disabled');
 }
 
 // Refresh token function
@@ -106,6 +110,23 @@ export function startWebSocketServer() {
   wss.on('connection', (ws: WebSocket) => {
     console.log('Client connected');
     clients.push(ws);
+
+    ws.on('message', async (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        if (data.type === 'ping') {
+          ws.send(JSON.stringify({ type: 'pong' }));
+          return;
+        }
+        if (data.type === 'refresh') {
+          await fetchAndBroadcast();
+          return;
+        }
+      } catch (error) {
+        // Ignore invalid messages
+      }
+    });
+
     ws.on('close', () => {
       console.log('Client disconnected');
       const index = clients.indexOf(ws);
@@ -113,6 +134,9 @@ export function startWebSocketServer() {
         clients.splice(index, 1);
       }
     });
+
+    // Send an immediate snapshot on new connection
+    fetchAndBroadcast().catch(() => {/* ignore */});
   });
 
   function sendUpdate(data: any) {
@@ -128,7 +152,7 @@ export function startWebSocketServer() {
 
 // Rate limiting and circuit breaker for polling
 let lastApiCall = 0;
-const MIN_API_INTERVAL = parseInt(process.env.MIN_API_INTERVAL || '500'); // Configurable minimum API interval (default 500ms)
+const MIN_API_INTERVAL = parseInt(process.env.MIN_API_INTERVAL || '200'); // Configurable minimum API interval (default 200ms)
 let consecutiveErrors = 0;
 
 let circuitBreakerState = 'CLOSED';
@@ -175,14 +199,14 @@ const endpointLimits = {
   'getMyCurrentPlayingTrack': {
     calls: 0,
     windowStart: Date.now(),
-    limit: parseInt(process.env.ENDPOINT_RATE_LIMIT || '20'),
-    window: parseInt(process.env.ENDPOINT_RATE_WINDOW || '5000')
+    limit: parseInt(process.env.ENDPOINT_RATE_LIMIT || '50'),
+    window: parseInt(process.env.ENDPOINT_RATE_WINDOW || '10000')
   },
   'getMyCurrentPlaybackState': {
     calls: 0,
     windowStart: Date.now(),
-    limit: parseInt(process.env.ENDPOINT_RATE_LIMIT || '20'),
-    window: parseInt(process.env.ENDPOINT_RATE_WINDOW || '5000')
+    limit: parseInt(process.env.ENDPOINT_RATE_LIMIT || '50'),
+    window: parseInt(process.env.ENDPOINT_RATE_WINDOW || '10000')
   },
 };
 
@@ -233,89 +257,85 @@ function getRetryAfterDelay(error: any) {
 }
 
 
+  async function fetchAndBroadcast() {
+    if (!accessToken) return;
+    const now = Date.now();
+    if (now - lastApiCall < MIN_API_INTERVAL) return;
 
-  // Poll for now playing and queue, send to WS clients
-  setInterval(async () => {
-    if (accessToken) {
-      const now = Date.now();
+    try {
+      console.log(`🔄 Polling for updates... (${clients.length} clients connected)`);
 
-      if (now - lastApiCall < MIN_API_INTERVAL) {
+      if (!checkCircuitBreaker()) {
+        console.log('Circuit breaker is OPEN, skipping polling');
         return;
       }
 
-      try {
-        console.log('Polling for updates...');
+      const nowPlayingLimit = checkEndpointRateLimit('getMyCurrentPlayingTrack');
+      const playbackLimit = checkEndpointRateLimit('getMyCurrentPlaybackState');
 
-        if (!checkCircuitBreaker()) {
-          console.log('Circuit breaker is OPEN, skipping polling');
-          return;
-        }
+      if (nowPlayingLimit !== true || playbackLimit !== true) {
+        const waitTime = Math.max(
+          nowPlayingLimit === true ? 0 : nowPlayingLimit,
+          playbackLimit === true ? 0 : playbackLimit
+        );
+        console.log(`Polling rate limited, waiting ${waitTime}ms`);
+        lastApiCall = Date.now() + waitTime;
+        return;
+      }
 
-        const nowPlayingLimit = checkEndpointRateLimit('getMyCurrentPlayingTrack');
-        const playbackLimit = checkEndpointRateLimit('getMyCurrentPlaybackState');
+      const [nowPlayingRes, queueRes] = await Promise.all([
+        spotifyApi.getMyCurrentPlayingTrack(),
+        spotifyApi.getMyCurrentPlaybackState()
+      ]);
 
-        if (nowPlayingLimit !== true || playbackLimit !== true) {
-          const waitTime = Math.max(
-            nowPlayingLimit === true ? 0 : nowPlayingLimit,
-            playbackLimit === true ? 0 : playbackLimit
-          );
-          console.log(`Polling rate limited, waiting ${waitTime}ms`);
-          lastApiCall = Date.now() + waitTime;
-          return;
-        }
+      recordEndpointCall('getMyCurrentPlayingTrack');
+      recordEndpointCall('getMyCurrentPlaybackState');
+      recordCircuitBreakerResult(true);
 
-        const [nowPlayingRes, queueRes] = await Promise.all([
-          spotifyApi.getMyCurrentPlayingTrack(),
-          spotifyApi.getMyCurrentPlaybackState()
-        ]);
+      lastApiCall = Date.now();
+      consecutiveErrors = 0;
 
-        recordEndpointCall('getMyCurrentPlayingTrack');
-        recordEndpointCall('getMyCurrentPlaybackState');
-        recordCircuitBreakerResult(true);
+      const update = {
+        nowPlaying: nowPlayingRes.body.item && 'artists' in nowPlayingRes.body.item ? {
+          id: nowPlayingRes.body.item.id,
+          name: nowPlayingRes.body.item.name,
+          artist: nowPlayingRes.body.item.artists[0].name,
+          album: nowPlayingRes.body.item.album.name,
+          image: nowPlayingRes.body.item.album.images[0]?.url
+        } : null,
+        isPlaying: nowPlayingRes.body.is_playing || false,
+        queue: (queueRes.body as any).queue ? (queueRes.body as any).queue.slice(0, 10).map((track: any) => ({
+          id: track.id,
+          name: track.name,
+          artist: track.artists[0].name,
+          album: track.album.name,
+          image: track.album.images[0]?.url
+        })) : []
+      };
 
-        lastApiCall = Date.now();
-        consecutiveErrors = 0;
+      console.log('📡 Sending WS update to', clients.length, 'clients - Now playing:', update.nowPlaying?.name || 'None');
+      sendUpdate(update);
+    } catch (error: any) {
+      console.error('Error polling for WS:', error);
+      consecutiveErrors++;
+      recordCircuitBreakerResult(false);
 
-        console.log('Now playing:', nowPlayingRes.body.item ? nowPlayingRes.body.item.name : 'None');
-        console.log('Queue length:', (queueRes.body as any).queue ? (queueRes.body as any).queue.length : 0);
-
-        const update = {
-          nowPlaying: nowPlayingRes.body.item && 'artists' in nowPlayingRes.body.item ? {
-            id: nowPlayingRes.body.item.id,
-            name: nowPlayingRes.body.item.name,
-            artist: nowPlayingRes.body.item.artists[0].name,
-            album: nowPlayingRes.body.item.album.name,
-            image: nowPlayingRes.body.item.album.images[0]?.url
-          } : null,
-          isPlaying: nowPlayingRes.body.is_playing || false,
-          queue: (queueRes.body as any).queue ? (queueRes.body as any).queue.slice(0, 10).map((track: any) => ({
-            id: track.id,
-            name: track.name,
-            artist: track.artists[0].name,
-            album: track.album.name,
-            image: track.album.images[0]?.url
-          })) : []
-        };
-
-        console.log('Sending WS update with queue:', update.queue.length, 'tracks');
-        sendUpdate(update);
-      } catch (error: any) {
-        console.error('Error polling for WS:', error);
-        consecutiveErrors++;
-        recordCircuitBreakerResult(false);
-
-        if (error.statusCode === 429) {
-          const delay = getRetryAfterDelay(error);
-          if (delay > 0) {
-            console.log(`Rate limited during polling, waiting ${delay}ms...`);
-            lastApiCall = Date.now() + delay;
-          } else {
-            lastApiCall = Date.now() + 30000;
-          }
+      if (error.statusCode === 429) {
+        const delay = getRetryAfterDelay(error);
+        if (delay > 0) {
+          console.log(`Rate limited during polling, waiting ${delay}ms...`);
+          lastApiCall = Date.now() + delay;
+        } else {
+          lastApiCall = Date.now() + 30000;
         }
       }
     }
-  }, parseInt(process.env.WS_POLLING_INTERVAL || '2000')); // Configurable polling interval (default 2 seconds)
+  }
+
+  // Poll for now playing and queue, send to WS clients
+  setInterval(fetchAndBroadcast, parseInt(process.env.WS_POLLING_INTERVAL || '2000'));
+
+  console.log(`🚀 WebSocket server polling started - interval: ${parseInt(process.env.WS_POLLING_INTERVAL || '2000')}ms`);
 
   // Set up token refresh interval
   setInterval(() => {

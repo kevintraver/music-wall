@@ -384,13 +384,14 @@ export default function AdminPage() {
 
   const removeAlbum = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/albums/${id}`, { method: 'DELETE' });
+      // Call the DELETE API to remove the album from the server
+      const res = await fetch(`/api/admin/albums/${encodeURIComponent(id)}`, { method: 'DELETE' });
 
       if (!res.ok) {
         throw new Error('Failed to delete album');
       }
 
-      // After deletion, reindex positions and trigger reorder to broadcast updates
+      // After deletion, reindex positions locally and trigger reorder to broadcast updates
       const current = albumsRef.current;
       const filtered = current.filter(a => a.id !== id);
       const reindexed = filtered.map((a, index) => ({ ...a, position: index }));

@@ -26,8 +26,15 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ### Set Up Initial Album Data
 
-- Copy `data/albums.example.json` to `data/albums.json` to start with some sample albums
+- Copy `data/albums.example.json` to `data/albums.json` to start with sample albums
 - The `data/albums.json` file is gitignored so your custom album selections won't be committed
+
+### Album Management
+
+- **Add Albums**: Search for albums in the admin panel and click the add button
+- **Reorder Albums**: Drag and drop albums to change their order in the wall
+- **Delete Albums**: Click the delete button (🗑️) on any album in the admin panel
+- All changes are automatically synced to all connected clients via WebSocket
 
 Admin login redirects to Spotify to grant access. Tokens are stored client-side for the admin dashboard and used by server routes for playback/queue.
 

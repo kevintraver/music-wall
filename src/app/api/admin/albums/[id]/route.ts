@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const ALBUMS_FILE = path.join(process.cwd(), 'data', 'albums.json');
 
@@ -32,8 +32,16 @@ export async function DELETE(
     return NextResponse.json({ error: 'Album not found' }, { status: 404 });
   }
 
-  albums = albums.filter((a: any) => a.id !== id);
-  fs.writeFileSync(ALBUMS_FILE, JSON.stringify(albums, null, 2));
+   albums = albums.filter((a: any) => a.id !== id);
+   fs.writeFileSync(ALBUMS_FILE, JSON.stringify(albums, null, 2));
 
-  return NextResponse.json({ success: true });
+   // Send WebSocket update to all clients
+   if (global.sendWebSocketUpdate) {
+     global.sendWebSocketUpdate({
+       type: 'albums',
+       albums: albums
+     });
+   }
+
+   return NextResponse.json({ success: true });
 }
