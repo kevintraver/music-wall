@@ -87,7 +87,7 @@ export const POST = withRateLimit(
         global.sendWebSocketUpdate({ type: 'albums', albums: updatedAlbums });
       }
 
-      console.log(`✅ Added album "${newAlbum.name}" by ${newAlbum.artist}`);
+      logger.success(`Added album "${newAlbum.name}" by ${newAlbum.artist}`);
 
       return NextResponse.json({
         success: true,
@@ -141,7 +141,7 @@ export const PUT = withRateLimit(
         global.sendWebSocketUpdate({ type: 'albums', albums: existingAlbums });
       }
 
-      console.log(`✅ Updated album "${updatedAlbum.name}"`);
+      logger.success(`Updated album "${updatedAlbum.name}"`);
 
       return NextResponse.json({
         success: true,
