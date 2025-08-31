@@ -513,7 +513,7 @@ export default function AdminPage() {
         // Re-enable button after API call completes
         setPlaybackActionInProgress(null);
       }
-    }, [isPlaying]);
+    }, [isPlaying, playbackActionInProgress]);
 
   // Handle album reorder coming from AlbumWall
   const handleReorder = async (updatedAlbums: Album[]) => {
@@ -543,7 +543,7 @@ export default function AdminPage() {
       }
 
       const result = await response.json();
-      console.log('✅ Albums reordered successfully:', result);
+      logger.success('Albums reordered successfully:', result);
 
       // The WebSocket will handle the real update, so we don't need to do anything else
 

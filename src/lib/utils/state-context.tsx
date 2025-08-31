@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import { Album, Track } from '@/websocket/types';
+import { logger } from '@/lib/utils/logger';
 
 // State interface
 interface AppState {
