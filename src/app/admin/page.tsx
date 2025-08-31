@@ -7,7 +7,7 @@ import { normalizeQueue } from "@/lib/queue";
 import NowPlayingPanel from "@/components/NowPlayingPanel";
 import { useRouter } from "next/navigation";
 import { getTokens, clearTokens } from "@/lib/tokens";
-import { getAlbums, addAlbum as addAlbumToStorage, removeAlbum as removeAlbumFromStorage, reorderAlbums, saveAlbumsToStorage } from "@/lib/localStorage";
+import { getAlbums, addAlbum as addAlbumToStorage, removeAlbum as removeAlbumFromStorage, reorderAlbums, saveAlbumsToStorage, resetToDefaults } from "@/lib/localStorage";
 
 interface Album {
   id: string;
@@ -97,9 +97,22 @@ export default function AdminPage() {
         })
         .catch(() => {/* ignore */});
 
-      getAlbums()
-        .then(setAlbums)
-        .finally(() => setAlbumsLoading(false));
+      // Check for reset parameter in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const shouldReset = urlParams.get('reset') === 'true';
+
+      if (shouldReset) {
+        console.log('🔄 Resetting admin to default albums...');
+        resetToDefaults()
+          .then(setAlbums)
+          .finally(() => setAlbumsLoading(false));
+        // Clean up URL
+        window.history.replaceState({}, '', window.location.pathname);
+      } else {
+        getAlbums()
+          .then(setAlbums)
+          .finally(() => setAlbumsLoading(false));
+      }
     }
   }, [isLoggedIn]);
 

@@ -35,6 +35,21 @@ The app now uses **localStorage** for album management instead of JSON files:
 
 The `data/albums.example.json` file provides starter content but is not used for ongoing storage.
 
+### Updating Album Art
+
+Keep album artwork fresh with the Spotify API:
+
+```bash
+# Update all default albums with latest artwork from Spotify
+npm run update-album-art
+```
+
+This script:
+- Fetches current album data from Spotify API
+- Updates `data/albums.example.json` with fresh images and metadata
+- Handles rate limiting and authentication automatically
+- Provides fallback to existing data if API calls fail
+
 ### Album Management
 
 - **Add Albums**: Search for albums in the admin panel and click the add button

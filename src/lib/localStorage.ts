@@ -119,3 +119,22 @@ export async function getAlbums(): Promise<Album[]> {
 
   return albums;
 }
+
+// Clear all album data and reset to defaults
+export async function resetToDefaults(): Promise<Album[]> {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    // Clear localStorage
+    localStorage.removeItem(ALBUMS_STORAGE_KEY);
+    localStorage.removeItem(DEFAULT_ALBUMS_KEY);
+
+    // Load fresh defaults
+    console.log('Resetting to default albums...');
+    const defaultAlbums = await loadDefaultAlbums();
+    return defaultAlbums;
+  } catch (error) {
+    console.error('Error resetting to defaults:', error);
+    return [];
+  }
+}

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import Skeleton from "@/components/Skeleton";
 import { normalizeQueue } from "@/lib/queue";
 import ResponsiveAlbumGrid from "@/components/ResponsiveAlbumGrid";
-import { getAlbums, saveAlbumsToStorage } from "@/lib/localStorage";
+import { getAlbums, saveAlbumsToStorage, resetToDefaults } from "@/lib/localStorage";
 
 interface Album {
   id: string;
@@ -34,9 +34,22 @@ export default function Home() {
 
 
   useEffect(() => {
-    getAlbums()
-      .then(setAlbums)
-      .finally(() => setAlbumsLoading(false));
+    // Check for reset parameter in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const shouldReset = urlParams.get('reset') === 'true';
+
+    if (shouldReset) {
+      console.log('🔄 Resetting to default albums...');
+      resetToDefaults()
+        .then(setAlbums)
+        .finally(() => setAlbumsLoading(false));
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    } else {
+      getAlbums()
+        .then(setAlbums)
+        .finally(() => setAlbumsLoading(false));
+    }
   }, []);
 
   useEffect(() => {
