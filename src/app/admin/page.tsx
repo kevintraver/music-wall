@@ -148,7 +148,12 @@ export default function AdminPage() {
             return;
           }
 
-          console.log('Admin WS update:', data);
+          console.log('📨 WS message received (admin):', {
+            type: data?.type,
+            hasNowPlaying: Object.prototype.hasOwnProperty.call(data || {}, 'nowPlaying'),
+            hasQueue: Object.prototype.hasOwnProperty.call(data || {}, 'queue'),
+            nowPlaying: data?.nowPlaying?.name || null,
+          });
           
           // Handle different message types to avoid cross-contamination
           const messageType = data.type || 'mixed';
@@ -169,7 +174,7 @@ export default function AdminPage() {
           // Playback-only updates (e.g., from play/pause/skip)
           if (messageType === 'playback' || ('nowPlaying' in data || 'isPlaying' in data || 'queue' in data)) {
             if (data.nowPlaying) {
-              console.log('Now playing:', data.nowPlaying.name, 'by', data.nowPlaying.artist);
+              console.log('🎵 (admin) now playing:', data.nowPlaying.name, 'by', data.nowPlaying.artist);
             }
             if (Array.isArray?.(data.queue)) {
               console.log('Queue updated:', data.queue.map((t: any) => t.name).join(', '));

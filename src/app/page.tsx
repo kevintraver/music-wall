@@ -95,7 +95,12 @@ export default function Home() {
           const data = JSON.parse(event.data);
           if (data.type === 'pong') return; // Ignore pong responses
 
-          console.log('📨 WS message received:', data);
+          console.log('📨 WS message received (wall):', {
+            type: data?.type,
+            hasNowPlaying: Object.prototype.hasOwnProperty.call(data || {}, 'nowPlaying'),
+            hasQueue: Object.prototype.hasOwnProperty.call(data || {}, 'queue'),
+            nowPlaying: data?.nowPlaying?.name || null,
+          });
 
           // Validate message structure
           if (typeof data !== 'object' || data === null) {
@@ -119,7 +124,7 @@ export default function Home() {
           if (messageType === 'playback' || ('nowPlaying' in data || 'queue' in data)) {
             // Only update nowPlaying if the payload explicitly includes the field
             if ('nowPlaying' in data) {
-              console.log('🎵 Updating now playing:', data.nowPlaying?.name || 'None');
+              console.log('🎵 (wall) updating now playing:', data.nowPlaying?.name || 'None');
               setNowPlaying(data.nowPlaying);
             }
             // Only update queue if it's explicitly included in the message

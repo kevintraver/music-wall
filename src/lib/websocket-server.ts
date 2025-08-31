@@ -48,8 +48,8 @@ function saveTokens() {
 
 
 // Load saved tokens
-loadTokens();
-console.log('🔑 WebSocket server token status - Access:', !!accessToken, 'Refresh:', !!refreshToken);
+const tokensLoaded = loadTokens();
+console.log('🔑 WS tokens loaded from file:', tokensLoaded, '| Access:', !!accessToken, 'Refresh:', !!refreshToken);
 
 // Spotify API setup
 const spotifyApi = new SpotifyWebApi({
@@ -109,7 +109,7 @@ export function startWebSocketServer() {
   const clients: WebSocket[] = [];
 
   wss.on('connection', (ws: WebSocket) => {
-    console.log('Client connected');
+    console.log('🔌 WS client connected');
     clients.push(ws);
 
     ws.on('message', async (message) => {
@@ -117,19 +117,21 @@ export function startWebSocketServer() {
         const data = JSON.parse(message.toString());
         if (data.type === 'ping') {
           ws.send(JSON.stringify({ type: 'pong' }));
+          console.log('⟲ WS heartbeat pong sent');
           return;
         }
         if (data.type === 'refresh') {
+          console.log('🛰️  WS refresh requested by client');
           await fetchAndBroadcast();
           return;
         }
       } catch (error) {
-        // Ignore invalid messages
+        console.warn('WS message parse error:', error);
       }
     });
 
     ws.on('close', () => {
-      console.log('Client disconnected');
+      console.log('🔌 WS client disconnected');
       const index = clients.indexOf(ws);
       if (index !== -1) {
         clients.splice(index, 1);
@@ -142,16 +144,26 @@ export function startWebSocketServer() {
       if (fs.existsSync(albumsPath)) {
         const albums = JSON.parse(fs.readFileSync(albumsPath, 'utf8'));
         if (ws.readyState === WebSocket.OPEN) {
+          console.log(`📚 Sending albums snapshot: ${albums.length} albums`);
           ws.send(JSON.stringify({ type: 'albums', albums }));
         }
       }
     } catch (_) {
-      // ignore read errors
+      console.warn('Unable to read albums.json for WS connect snapshot');
     }
 
     // Send last known playback snapshot if available, then request fresh
     if (lastPlaybackSnapshot && ws.readyState === WebSocket.OPEN) {
-      try { ws.send(JSON.stringify(lastPlaybackSnapshot)); } catch {}
+      try {
+        console.log('🔁 Sending last playback snapshot to new client', {
+          nowPlaying: lastPlaybackSnapshot?.nowPlaying?.name || null,
+          isPlaying: lastPlaybackSnapshot?.isPlaying ?? null,
+          queueSize: Array.isArray(lastPlaybackSnapshot?.queue) ? lastPlaybackSnapshot.queue.length : null,
+        });
+        ws.send(JSON.stringify(lastPlaybackSnapshot));
+      } catch (e) {
+        console.warn('Failed to send last playback snapshot:', e);
+      }
     }
     fetchAndBroadcast().catch(() => {/* ignore */});
   });
@@ -167,6 +179,11 @@ export function startWebSocketServer() {
     });
     if (data && (Object.prototype.hasOwnProperty.call(data, 'nowPlaying') || Object.prototype.hasOwnProperty.call(data, 'queue') || Object.prototype.hasOwnProperty.call(data, 'isPlaying'))) {
       lastPlaybackSnapshot = data;
+      console.log('💾 Updated last playback snapshot', {
+        nowPlaying: data?.nowPlaying?.name || null,
+        isPlaying: data?.isPlaying ?? null,
+        queueSize: Array.isArray(data?.queue) ? data.queue.length : null,
+      });
     }
   }
 
@@ -300,7 +317,7 @@ function getRetryAfterDelay(error: any) {
     if (now - lastApiCall < MIN_API_INTERVAL) return;
 
     try {
-      console.log(`🔄 Polling for updates... (${clients.length} clients connected)`);
+      console.log(`🔄 Polling Spotify... (clients: ${clients.length}) Access token present: ${!!accessToken}`);
 
       if (!checkCircuitBreaker()) {
         console.log('Circuit breaker is OPEN, skipping polling');
@@ -324,6 +341,11 @@ function getRetryAfterDelay(error: any) {
         spotifyApi.getMyCurrentPlayingTrack(),
         spotifyApi.getMyCurrentPlaybackState()
       ]);
+      console.log('🎚 Spotify responses', {
+        nowPlayingItem: (nowPlayingRes.body as any)?.item?.name || null,
+        isPlayingNP: (nowPlayingRes.body as any)?.is_playing ?? null,
+        isPlayingState: (playbackStateRes.body as any)?.is_playing ?? null,
+      });
 
       recordEndpointCall('getMyCurrentPlayingTrack');
       recordEndpointCall('getMyCurrentPlaybackState');
@@ -346,10 +368,14 @@ function getRetryAfterDelay(error: any) {
         queue: [] as any[],
       };
 
-      console.log('📡 Sending WS update to', clients.length, 'clients - Now playing:', update.nowPlaying?.name || 'None');
+      console.log('📡 Broadcasting playback', {
+        clients: clients.length,
+        nowPlaying: update.nowPlaying?.name || null,
+        isPlaying: update.isPlaying,
+      });
       sendUpdate(update);
     } catch (error: any) {
-      console.error('Error polling for WS:', error);
+      console.error('❌ Error polling Spotify for WS:', error);
       consecutiveErrors++;
       recordCircuitBreakerResult(false);
 
