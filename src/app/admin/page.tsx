@@ -44,6 +44,7 @@ export default function AdminPage() {
   // Keep a stable reference to albums to avoid re-triggering searches on add
   const albumsRef = useRef<Album[]>([]);
   const [albumsLoading, setAlbumsLoading] = useState(true);
+  const syncedRef = useRef<boolean>(false);
   // Drag-and-drop state is isolated inside AlbumWall to avoid unrelated re-renders
   const [playbackUpdatePending, setPlaybackUpdatePending] = useState(false);
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
@@ -51,6 +52,7 @@ export default function AdminPage() {
   const [playbackActionLoading, setPlaybackActionLoading] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [showWsTooltip, setShowWsTooltip] = useState(false);
+  const [isTooltipHovered, setIsTooltipHovered] = useState(false);
   const [adminStats, setAdminStats] = useState<{
     totalClients: number;
     adminClients: number;
@@ -60,6 +62,7 @@ export default function AdminPage() {
     serverStartTime: string;
   } | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Check auth status on load
@@ -125,6 +128,28 @@ export default function AdminPage() {
     }
   }, [isLoggedIn]);
 
+  // After albums load on admin, sync them to server so wall can see them
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (albumsLoading) return;
+    if (syncedRef.current) return;
+    if (albums.length === 0) return;
+    syncedRef.current = true;
+    const { accessToken, refreshToken } = getTokens();
+    fetch('/api/admin/albums/reorder', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-spotify-access-token': accessToken,
+        'x-spotify-refresh-token': refreshToken,
+      },
+      body: JSON.stringify(albums),
+    }).catch(() => {
+      // non-fatal; wall will still update on next change
+      syncedRef.current = false;
+    });
+  }, [isLoggedIn, albumsLoading, albums]);
+
   // Initial queue snapshot will arrive via WebSocket after connect
 
   // Removed API queue polling; rely on WebSocket updates
@@ -179,56 +204,57 @@ export default function AdminPage() {
             return;
           }
 
+          const messageType = data.type || 'mixed';
+          const payload = Object.prototype.hasOwnProperty.call(data, 'payload') ? (data as any).payload : data;
+
           console.log('📨 WS message received (admin):', {
-            type: data?.type,
-            hasNowPlaying: Object.prototype.hasOwnProperty.call(data || {}, 'nowPlaying'),
-            hasQueue: Object.prototype.hasOwnProperty.call(data || {}, 'queue'),
-            nowPlaying: data?.nowPlaying?.name || null,
+            type: messageType,
+            hasNowPlaying: typeof payload === 'object' && payload !== null && ('nowPlaying' in payload),
+            hasQueue: typeof payload === 'object' && payload !== null && ('queue' in payload),
+            nowPlaying: (payload as any)?.nowPlaying?.name || null,
           });
           
-           // Handle different message types to avoid cross-contamination
-           const messageType = data.type || 'mixed';
-
-           // Admin stats updates
-           if (messageType === 'admin_stats' && data.payload) {
-             console.log('📊 Admin stats update:', data.payload);
-             setAdminStats(data.payload);
-             return;
-           }
+          // Admin stats updates
+          if (messageType === 'admin_stats' && data.payload) {
+            console.log('📊 Admin stats update:', data.payload);
+            setAdminStats(data.payload);
+            return;
+          }
 
            // Albums-only updates (e.g., from reordering)
-          if (messageType === 'albums' || (data.albums && Array.isArray(data.albums) && !('nowPlaying' in data) && !('queue' in data))) {
-            console.log('💿 Albums-only update:', data.albums.length, 'albums');
-            const albumsChanged = JSON.stringify(data.albums) !== JSON.stringify(albums);
+          if (messageType === 'albums' && Array.isArray(payload)) {
+            console.log('💿 Albums-only update:', payload.length, 'albums');
+            const albumsChanged = JSON.stringify(payload) !== JSON.stringify(albums);
             if (albumsChanged) {
-              setAlbums(data.albums);
-              albumsRef.current = data.albums;
+              setAlbums(payload);
+              albumsRef.current = payload;
               // Save to localStorage to keep in sync
-              saveAlbumsToStorage(data.albums);
+              saveAlbumsToStorage(payload);
             }
             return; // Don't process other fields for albums-only updates
           }
           
           // Playback-only updates (e.g., from play/pause/skip)
-          if (messageType === 'playback' || ('nowPlaying' in data || 'isPlaying' in data || 'queue' in data)) {
-            if (data.nowPlaying) {
-              console.log('🎵 (admin) now playing:', data.nowPlaying.name, 'by', data.nowPlaying.artist);
+          if (messageType === 'playback' || (typeof payload === 'object' && payload !== null && ('nowPlaying' in payload || 'isPlaying' in payload || 'queue' in payload))) {
+            const p: any = payload;
+            if (p?.nowPlaying) {
+              console.log('🎵 (admin) now playing:', p.nowPlaying.name, 'by', p.nowPlaying.artist);
             }
-            if (Array.isArray?.(data.queue)) {
-              console.log('Queue updated:', data.queue.map((t: any) => t.name).join(', '));
+            if (Array.isArray?.(p?.queue)) {
+              console.log('Queue updated:', p.queue.map((t: any) => t.name).join(', '));
             }
             
             // Only update nowPlaying if the payload explicitly includes the field
-            if ('nowPlaying' in data) {
-              setNowPlaying(data.nowPlaying);
+            if (p && 'nowPlaying' in p) {
+              setNowPlaying(p.nowPlaying);
             }
             // Update isPlaying if provided
-            if (typeof data.isPlaying === 'boolean') {
-              setIsPlaying(data.isPlaying);
+            if (typeof p?.isPlaying === 'boolean') {
+              setIsPlaying(p.isPlaying);
             }
             // Only update queue if included (even if empty)
-            if ('queue' in data) {
-              const normalized = normalizeQueue(data);
+            if (p && 'queue' in p) {
+              const normalized = normalizeQueue(p);
               setUpNext(normalized);
             }
             setPlaybackLoaded(true);
@@ -242,31 +268,33 @@ export default function AdminPage() {
           
           // Mixed updates (fallback for legacy messages that contain everything)
           if (messageType === 'mixed') {
-            if (data.albums && Array.isArray(data.albums)) {
-              console.log('Albums updated:', data.albums.length, 'albums');
-              const albumsChanged = JSON.stringify(data.albums) !== JSON.stringify(albums);
+            if (Array.isArray((payload as any)?.albums)) {
+              const albumsPayload = (payload as any).albums as Album[];
+              console.log('Albums updated:', albumsPayload.length, 'albums');
+              const albumsChanged = JSON.stringify(albumsPayload) !== JSON.stringify(albums);
               if (albumsChanged) {
-                setAlbums(data.albums);
+                setAlbums(albumsPayload);
               }
             }
-            if (data.nowPlaying) {
-              console.log('Now playing:', data.nowPlaying.name, 'by', data.nowPlaying.artist);
+            if ((payload as any)?.nowPlaying) {
+              const np = (payload as any).nowPlaying;
+              console.log('Now playing:', np.name, 'by', np.artist);
             }
-            if (Array.isArray?.(data.queue)) {
-              console.log('Queue updated:', data.queue.map((t: any) => t.name).join(', '));
+            if (Array.isArray?.((payload as any)?.queue)) {
+              console.log('Queue updated:', (payload as any).queue.map((t: any) => t.name).join(', '));
             }
             
             // Only update nowPlaying if the payload explicitly includes the field
-            if ('nowPlaying' in data) {
-              setNowPlaying(data.nowPlaying);
+            if (payload && typeof payload === 'object' && 'nowPlaying' in (payload as any)) {
+              setNowPlaying((payload as any).nowPlaying);
             }
             // Update isPlaying if provided
-            if (typeof data.isPlaying === 'boolean') {
-              setIsPlaying(data.isPlaying);
+            if (typeof (payload as any)?.isPlaying === 'boolean') {
+              setIsPlaying((payload as any).isPlaying);
             }
             // Only update queue if included (even if empty)
-            if ('queue' in data) {
-              const normalized = normalizeQueue(data);
+            if (payload && typeof payload === 'object' && 'queue' in (payload as any)) {
+              const normalized = normalizeQueue(payload);
               setUpNext(normalized);
             }
             setPlaybackLoaded(true);
@@ -278,13 +306,7 @@ export default function AdminPage() {
             return;
           }
 
-          // Admin stats updates
-          if (messageType === 'admin_stats') {
-            console.log('📊 Admin stats update:', data.payload);
-            setAdminStats(data.payload);
-            return;
-          }
-        } catch (error) {
+          } catch (error) {
           console.error('Error processing WebSocket message:', error);
         }
       };
@@ -627,34 +649,19 @@ export default function AdminPage() {
                     <span
                       className="text-sm text-gray-600 cursor-help"
                       onMouseEnter={() => setShowWsTooltip(true)}
-                      onMouseLeave={() => setShowWsTooltip(false)}
+                      onMouseLeave={() => {
+                        // Delay hiding to allow mouse to move to tooltip
+                        setTimeout(() => {
+                          if (!isTooltipHovered) {
+                            setShowWsTooltip(false);
+                          }
+                        }, 100);
+                      }}
                     >
                       {wsConnected ? 'Connected' : 'Disconnected'}
                     </span>
                   </div>
-                  <button
-                    onClick={async () => {
-                      try {
-                        const { accessToken, refreshToken } = getTokens();
-                        const response = await fetch('/api/admin/status', {
-                          headers: {
-                            'x-spotify-access-token': accessToken,
-                            'x-spotify-refresh-token': refreshToken
-                          }
-                        });
-                        const status = await response.json();
-                        console.log('Spotify Status:', status);
-                        alert(`Spotify Status:\n${JSON.stringify(status, null, 2)}`);
-                      } catch (error) {
-                        console.error('Status check failed:', error);
-                        alert('Failed to check Spotify status');
-                      }
-                    }}
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm mr-2"
-                    title="Check Spotify Status"
-                  >
-                    Status
-                  </button>
+
                   <button
                     onClick={handleLogout}
                     className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
@@ -840,7 +847,16 @@ export default function AdminPage() {
        </main>
       </div>
       {showWsTooltip && (
-        <div className="fixed bg-white border border-gray-200 rounded-lg shadow-xl p-4 z-50 min-w-80 pointer-events-none" style={{ top: '80px', right: '180px' }}>
+        <div
+          ref={tooltipRef}
+          className="fixed bg-white border border-gray-200 rounded-lg shadow-xl p-4 z-50 min-w-80"
+          style={{ top: '80px', right: '180px' }}
+          onMouseEnter={() => setIsTooltipHovered(true)}
+          onMouseLeave={() => {
+            setIsTooltipHovered(false);
+            setShowWsTooltip(false);
+          }}
+        >
           <div className="text-sm font-medium text-gray-900 mb-3">System Status</div>
           <div className="space-y-3 text-xs text-gray-600">
             <div>
