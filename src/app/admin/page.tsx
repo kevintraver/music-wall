@@ -522,7 +522,7 @@ export default function AdminPage() {
             <div className="flex items-center justify-between">
               <h1 className="text-3xl font-bold leading-tight text-gray-900">Admin Dashboard</h1>
               <div className="flex items-center space-x-4">
-                 <div className="flex items-center space-x-2 relative">
+                 <div className="flex items-center space-x-2">
                    <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
                     <span
                       className="text-sm text-gray-600 cursor-help"
@@ -531,24 +531,6 @@ export default function AdminPage() {
                     >
                       {wsConnected ? 'Connected' : 'Disconnected'}
                     </span>
-                     {showWsTooltip && (
-                       <div className="fixed bg-white border border-gray-200 rounded-lg shadow-xl p-4 z-50 min-w-64" style={{ top: '80px', left: '50%', transform: 'translateX(-50%)' }}>
-                         <div className="text-sm font-medium text-gray-900 mb-2">WebSocket Connection</div>
-                         <div className="space-y-2 text-xs text-gray-600">
-                           <div className="flex justify-between">
-                             <span>Server:</span>
-                             <span className="font-mono text-gray-800">ws://{window.location.hostname}:3002</span>
-                           </div>
-                           <div className="flex justify-between">
-                             <span>Status:</span>
-                             <span className={`font-medium ${wsConnected ? 'text-green-600' : 'text-red-600'}`}>
-                               {wsConnected ? 'Connected' : 'Disconnected'}
-                             </span>
-                           </div>
-                         </div>
-                         <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-white border-l border-t border-gray-200 rotate-45"></div>
-                       </div>
-                     )}
                   </div>
                  <button
                   onClick={handleLogout}
@@ -731,6 +713,24 @@ export default function AdminPage() {
           </div>
        </main>
       </div>
+      {showWsTooltip && (
+        <div className="fixed bg-white border border-gray-200 rounded-lg shadow-xl p-4 z-50 min-w-64 pointer-events-none" style={{ top: '80px', right: '180px' }}>
+          <div className="text-sm font-medium text-gray-900 mb-2">WebSocket Connection</div>
+          <div className="space-y-2 text-xs text-gray-600">
+            <div className="flex justify-between">
+              <span>Server:</span>
+              <span className="font-mono text-gray-800">ws://{window.location.hostname}:3002</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Status:</span>
+              <span className={`font-medium ${wsConnected ? 'text-green-600' : 'text-red-600'}`}>
+                {wsConnected ? 'Connected' : 'Disconnected'}
+              </span>
+            </div>
+          </div>
+          <div className="absolute -top-1 right-8 w-2 h-2 bg-white border-l border-t border-gray-200 rotate-45"></div>
+        </div>
+      )}
     </>
   );
 }
