@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_REDIRECT_URI, APP_BASE_URL, assertSpotifyEnv } from '@/lib/utils/env';
-import * as fs from 'fs';
-import * as path from 'path';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -51,18 +49,13 @@ export async function GET(request: NextRequest) {
     const refreshToken = (data.refresh_token as string) || '';
     console.log('Successfully authenticated with Spotify tokens');
 
-    // Persist tokens for the WebSocket server and any server routes
+    // Update running WS server tokens if available (no server persistence)
     try {
-      const tokenPath = path.join(process.cwd(), 'data');
-      const filePath = path.join(tokenPath, 'spotify-tokens.json');
-      if (!fs.existsSync(tokenPath)) fs.mkdirSync(tokenPath, { recursive: true });
-      fs.writeFileSync(filePath, JSON.stringify({ accessToken, refreshToken, savedAt: new Date().toISOString() }, null, 2));
-      // Update running WS server tokens if available
       if (global.setSpotifyTokens) {
         global.setSpotifyTokens({ accessToken, refreshToken });
       }
     } catch (e) {
-      console.error('Failed to persist Spotify tokens:', e);
+      console.error('Failed updating WS tokens:', e);
     }
 
     const baseUrl = APP_BASE_URL || `http://${host}`;

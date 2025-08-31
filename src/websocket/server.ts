@@ -14,7 +14,6 @@ declare global {
 }
 
 const DATA_DIR = path.join(process.cwd(), 'data');
-const TOKEN_FILE = path.join(DATA_DIR, 'spotify-tokens.json');
 const ALBUMS_FILE = path.join(DATA_DIR, 'albums.json');
 
 // OAuth variables
@@ -28,62 +27,8 @@ const spotifyApi = new SpotifyWebApi({
   redirectUri: SPOTIFY_REDIRECT_URI,
 });
 
-// Token persistence
-function loadTokens() {
-  try {
-    if (fs.existsSync(TOKEN_FILE)) {
-      const tokens = JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8'));
-      accessToken = tokens.accessToken || '';
-      refreshToken = tokens.refreshToken || '';
-      if (accessToken) spotifyApi.setAccessToken(accessToken);
-      return true;
-    }
-  } catch (error) {
-    console.error('Error loading saved tokens:', error);
-  }
-  return false;
-}
-
-function saveTokens() {
-  try {
-    const tokens = {
-      accessToken,
-      refreshToken,
-      savedAt: new Date().toISOString()
-    };
-    fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2));
-    console.log('Saved Spotify tokens to file');
-  } catch (error) {
-    console.error('Error saving tokens:', error);
-  }
-}
-
-// Load saved tokens
-const tokensLoaded = loadTokens();
-console.log('🔑 WS tokens loaded from file:', tokensLoaded, '| Access:', !!accessToken, 'Refresh:', !!refreshToken);
-
-// Watch for token file changes
-try {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.watch(DATA_DIR, { persistent: false }, (eventType, filename) => {
-    if (filename === 'spotify-tokens.json') {
-      try {
-        const before = { hasAccess: !!accessToken, hasRefresh: !!refreshToken };
-        if (fs.existsSync(TOKEN_FILE)) {
-          const tokens = JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8'));
-          accessToken = tokens.accessToken || '';
-          refreshToken = tokens.refreshToken || '';
-          if (accessToken) spotifyApi.setAccessToken(accessToken);
-          console.log('👀 Detected token file change. Tokens reloaded.', { before, after: { hasAccess: !!accessToken, hasRefresh: !!refreshToken } });
-        }
-      } catch (e) {
-        console.warn('Failed to reload tokens after file change:', e);
-      }
-    }
-  });
-} catch (e) {
-  console.warn('Token file watcher could not be set up:', e);
-}
+// No file-based token persistence; tokens are provided by clients
+console.log('🔑 WS tokens: using in-memory tokens only (no file persistence)');
 
 // Admin monitoring data
 let adminStats = {
@@ -188,7 +133,6 @@ export function startWebSocketServer() {
     if (rt) {
       refreshToken = rt;
     }
-    try { saveTokens(); } catch {}
     console.log('🔄 WS tokens updated via callback', { hasAccess: !!accessToken, hasRefresh: !!refreshToken });
   };
 

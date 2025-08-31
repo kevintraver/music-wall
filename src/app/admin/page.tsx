@@ -44,12 +44,13 @@ export default function AdminPage() {
   // Keep a stable reference to albums to avoid re-triggering searches on add
   const albumsRef = useRef<Album[]>([]);
   const [albumsLoading, setAlbumsLoading] = useState(true);
-  const syncedRef = useRef<boolean>(false);
+
   // Drag-and-drop state is isolated inside AlbumWall to avoid unrelated re-renders
   const [playbackUpdatePending, setPlaybackUpdatePending] = useState(false);
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
   const [queueLoaded, setQueueLoaded] = useState(false);
-  const [playbackActionLoading, setPlaybackActionLoading] = useState<string | null>(null);
+   const [playbackActionLoading, setPlaybackActionLoading] = useState<string | null>(null);
+   const [playbackActionInProgress, setPlaybackActionInProgress] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [showWsTooltip, setShowWsTooltip] = useState(false);
   const [isTooltipHovered, setIsTooltipHovered] = useState(false);
@@ -128,27 +129,7 @@ export default function AdminPage() {
     }
   }, [isLoggedIn]);
 
-  // After albums load on admin, sync them to server so wall can see them
-  useEffect(() => {
-    if (!isLoggedIn) return;
-    if (albumsLoading) return;
-    if (syncedRef.current) return;
-    if (albums.length === 0) return;
-    syncedRef.current = true;
-    const { accessToken, refreshToken } = getTokens();
-    fetch('/api/admin/albums/reorder', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-spotify-access-token': accessToken,
-        'x-spotify-refresh-token': refreshToken,
-      },
-      body: JSON.stringify(albums),
-    }).catch(() => {
-      // non-fatal; wall will still update on next change
-      syncedRef.current = false;
-    });
-  }, [isLoggedIn, albumsLoading, albums]);
+
 
   // Initial queue snapshot will arrive via WebSocket after connect
 
@@ -204,20 +185,12 @@ export default function AdminPage() {
             return;
           }
 
-          const messageType = data.type || 'mixed';
-          const payload = Object.prototype.hasOwnProperty.call(data, 'payload') ? (data as any).payload : data;
+           const messageType = data.type || 'mixed';
+           const payload = Object.prototype.hasOwnProperty.call(data, 'payload') ? (data as any).payload : data;
 
-          console.log('📨 WS message received (admin):', {
-            type: messageType,
-            hasNowPlaying: typeof payload === 'object' && payload !== null && ('nowPlaying' in payload),
-            hasQueue: typeof payload === 'object' && payload !== null && ('queue' in payload),
-            nowPlaying: (payload as any)?.nowPlaying?.name || null,
-          });
-          
-          // Admin stats updates
-          if (messageType === 'admin_stats' && data.payload) {
-            console.log('📊 Admin stats update:', data.payload);
-            setAdminStats(data.payload);
+           // Admin stats updates
+           if (messageType === 'admin_stats' && data.payload) {
+             setAdminStats(data.payload);
             return;
           }
 
@@ -234,15 +207,9 @@ export default function AdminPage() {
             return; // Don't process other fields for albums-only updates
           }
           
-          // Playback-only updates (e.g., from play/pause/skip)
-          if (messageType === 'playback' || (typeof payload === 'object' && payload !== null && ('nowPlaying' in payload || 'isPlaying' in payload || 'queue' in payload))) {
-            const p: any = payload;
-            if (p?.nowPlaying) {
-              console.log('🎵 (admin) now playing:', p.nowPlaying.name, 'by', p.nowPlaying.artist);
-            }
-            if (Array.isArray?.(p?.queue)) {
-              console.log('Queue updated:', p.queue.map((t: any) => t.name).join(', '));
-            }
+           // Playback-only updates (e.g., from play/pause/skip)
+           if (messageType === 'playback' || (typeof payload === 'object' && payload !== null && ('nowPlaying' in payload || 'isPlaying' in payload || 'queue' in payload))) {
+             const p: any = payload;
             
             // Only update nowPlaying if the payload explicitly includes the field
             if (p && 'nowPlaying' in p) {
@@ -266,23 +233,15 @@ export default function AdminPage() {
             return;
           }
           
-          // Mixed updates (fallback for legacy messages that contain everything)
-          if (messageType === 'mixed') {
-            if (Array.isArray((payload as any)?.albums)) {
-              const albumsPayload = (payload as any).albums as Album[];
-              console.log('Albums updated:', albumsPayload.length, 'albums');
-              const albumsChanged = JSON.stringify(albumsPayload) !== JSON.stringify(albums);
-              if (albumsChanged) {
-                setAlbums(albumsPayload);
-              }
-            }
-            if ((payload as any)?.nowPlaying) {
-              const np = (payload as any).nowPlaying;
-              console.log('Now playing:', np.name, 'by', np.artist);
-            }
-            if (Array.isArray?.((payload as any)?.queue)) {
-              console.log('Queue updated:', (payload as any).queue.map((t: any) => t.name).join(', '));
-            }
+           // Mixed updates (fallback for legacy messages that contain everything)
+           if (messageType === 'mixed') {
+             if (Array.isArray((payload as any)?.albums)) {
+               const albumsPayload = (payload as any).albums as Album[];
+               const albumsChanged = JSON.stringify(albumsPayload) !== JSON.stringify(albums);
+               if (albumsChanged) {
+                 setAlbums(albumsPayload);
+               }
+             }
             
             // Only update nowPlaying if the payload explicitly includes the field
             if (payload && typeof payload === 'object' && 'nowPlaying' in (payload as any)) {
@@ -504,48 +463,68 @@ export default function AdminPage() {
     }
   };
 
-  const handlePlaybackAction = useCallback(async (action: string, endpoint: string) => {
-    // Don't show loading for pause/play actions (immediate feedback)
-    if (action !== 'pause' && action !== 'play') {
-      setPlaybackActionLoading(action);
-    }
-    if (action !== 'pause' && action !== 'play') {
-      setPlaybackUpdatePending(true);
-    }
+   const handlePlaybackAction = useCallback(async (action: string, endpoint: string) => {
+     // Prevent multiple simultaneous playback actions
+     if (playbackActionInProgress) {
+       console.log(`Playback action ${action} blocked - ${playbackActionInProgress} already in progress`);
+       return;
+     }
 
-    // For play/pause, rely on WebSocket to reflect the true state from Spotify
+     // Set action in progress immediately
+     setPlaybackActionInProgress(action);
 
-    try {
-      const { accessToken, refreshToken } = getTokens();
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'x-spotify-access-token': accessToken,
-          'x-spotify-refresh-token': refreshToken,
-        },
-      });
-      if (!res.ok) {
-        throw new Error(`Playback ${action} failed`);
-      }
-      // Keep loading state until WebSocket confirms the update (except for pause/play)
-      if (action !== 'pause' && action !== 'play') {
-        setTimeout(() => {
-          if (playbackActionLoading === action) {
-            setPlaybackActionLoading(null);
-            setPlaybackUpdatePending(false);
-          }
-        }, 2000); // Fallback timeout
-      } else {
-        // For pause/play, do not toggle isPlaying optimistically; wait for WS
-        setPlaybackActionLoading(null);
-        setPlaybackUpdatePending(false);
-      }
-    } catch (error) {
-      console.error(`Error ${action}:`, error);
-      setPlaybackActionLoading(null);
-      setPlaybackUpdatePending(false);
-    }
-  }, []);
+     // Don't show loading for pause/play actions (immediate feedback)
+     if (action !== 'pause' && action !== 'play') {
+       setPlaybackActionLoading(action);
+     }
+     if (action !== 'pause' && action !== 'play') {
+       setPlaybackUpdatePending(true);
+     }
+
+     // For play/pause, optimistically update the UI immediately
+     let originalIsPlaying = isPlaying;
+     if (action === 'play') {
+       setIsPlaying(true);
+     } else if (action === 'pause') {
+       setIsPlaying(false);
+     }
+
+     try {
+       const { accessToken, refreshToken } = getTokens();
+       const res = await fetch(endpoint, {
+         method: 'POST',
+         headers: {
+           'x-spotify-access-token': accessToken,
+           'x-spotify-refresh-token': refreshToken,
+         },
+       });
+       if (!res.ok) {
+         throw new Error(`Playback ${action} failed`);
+       }
+       // Keep loading state until WebSocket confirms the update (except for pause/play)
+       if (action !== 'pause' && action !== 'play') {
+         setTimeout(() => {
+           if (playbackActionLoading === action) {
+             setPlaybackActionLoading(null);
+             setPlaybackUpdatePending(false);
+           }
+         }, 2000); // Fallback timeout
+       } else {
+         // For pause/play, clear loading states immediately since we updated optimistically
+         setPlaybackActionLoading(null);
+         setPlaybackUpdatePending(false);
+       }
+     } catch (error) {
+       console.error(`Error ${action}:`, error);
+       // Revert optimistic update on error
+       setIsPlaying(originalIsPlaying);
+       setPlaybackActionLoading(null);
+       setPlaybackUpdatePending(false);
+     } finally {
+       // Always clear the in-progress state
+       setPlaybackActionInProgress(null);
+     }
+   }, [isPlaying, playbackActionInProgress]);
 
   // Handle album reorder coming from AlbumWall
   const handleReorder = async (updatedAlbums: Album[]) => {
@@ -678,6 +657,7 @@ export default function AdminPage() {
                 playbackLoaded={playbackLoaded}
                 playbackUpdatePending={playbackUpdatePending}
                 playbackActionLoading={playbackActionLoading}
+                playbackActionInProgress={playbackActionInProgress}
                 onAction={handlePlaybackAction}
                 colSpan="lg:col-span-2"
               />

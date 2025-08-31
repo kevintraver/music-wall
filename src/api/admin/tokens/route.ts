@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as fs from 'fs';
-import * as path from 'path';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,18 +17,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Missing accessToken' }, { status: 400 });
     }
 
-    const tokenDir = path.join(process.cwd(), 'data');
-    const tokenFile = path.join(tokenDir, 'spotify-tokens.json');
-    try {
-      if (!fs.existsSync(tokenDir)) fs.mkdirSync(tokenDir, { recursive: true });
-      fs.writeFileSync(
-        tokenFile,
-        JSON.stringify({ accessToken, refreshToken, savedAt: new Date().toISOString() }, null, 2)
-      );
-    } catch (e) {
-      console.error('Failed writing token file:', e);
-    }
-
     try {
       if (global.setSpotifyTokens) {
         global.setSpotifyTokens({ accessToken, refreshToken });
@@ -39,7 +25,8 @@ export async function POST(request: NextRequest) {
       console.error('Failed updating WS tokens:', e);
     }
 
-    return NextResponse.json({ ok: true });
+    // No server-side persistence; tokens must live in client localStorage
+    return NextResponse.json({ ok: true, storage: 'client' });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || 'unknown' }, { status: 500 });
   }
@@ -47,11 +34,9 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    const tokenFile = path.join(process.cwd(), 'data', 'spotify-tokens.json');
-    const exists = fs.existsSync(tokenFile);
-    return NextResponse.json({ exists });
+    // Server does not store tokens; they are kept in client localStorage
+    return NextResponse.json({ exists: false, storage: 'client_only' });
   } catch {
-    return NextResponse.json({ exists: false });
+    return NextResponse.json({ exists: false, storage: 'client_only' });
   }
 }
-

@@ -150,9 +150,6 @@ export default function AlbumWall({ albums, albumsLoading, onReorder, onRemove }
                   className="w-full h-auto rounded-lg object-cover aspect-square shadow-md"
                   src={album.image}
                 />
-                <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
-                  {index + 1}
-                </div>
                 <button
                   onClick={() => onRemove(album.id)}
                   className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white"

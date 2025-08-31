@@ -60,7 +60,16 @@ export default function Home() {
           <h2 className="text-lg font-bold mb-3 text-gray-300 tracking-wider text-center">Now Playing</h2>
           <ErrorBoundary>
             {isLoading.playback ? (
-            nowPlaying ? (
+              // Loading playback: show skeleton
+              <div className="flex flex-col items-center flex-grow text-center justify-center min-h-[clamp(12rem,24vh,16rem)]">
+                <Skeleton className="w-[clamp(6rem,16vh,12rem)] h-[clamp(6rem,16vh,12rem)] rounded-lg" />
+                <div className="mt-6 w-[min(16rem,60vw)]">
+                  <Skeleton className="h-7 w-3/4 mx-auto mb-2" />
+                  <Skeleton className="h-4 w-1/2 mx-auto" />
+                </div>
+              </div>
+            ) : nowPlaying ? (
+              // Ready and we have a track
               <div className="flex flex-col items-center flex-grow text-center min-h-[clamp(12rem,24vh,16rem)]">
                 {nowPlaying.image ? (
                   <img
@@ -69,7 +78,7 @@ export default function Home() {
                     className="w-[clamp(6rem,16vh,12rem)] h-[clamp(6rem,16vh,12rem)] rounded-lg shadow-lg object-cover"
                   />
                 ) : (
-                  <Skeleton className="w-[clamp(6rem,16vh,12rem)] h-[clamp(6rem,16vh,12rem)] rounded-lg" />
+                  <div className="w-[clamp(6rem,16vh,12rem)] h-[clamp(6rem,16vh,12rem)] rounded-lg bg-gray-700" />
                 )}
                 <div className="mt-6">
                   <h3 className="text-2xl font-bold truncate max-w-[90vw] lg:max-w-[60vw]">
@@ -79,23 +88,14 @@ export default function Home() {
                 </div>
               </div>
             ) : (
+              // Ready but nothing is playing
               <div className="flex flex-col items-center flex-grow text-center justify-center min-h-[clamp(12rem,24vh,16rem)]">
-                <Skeleton className="w-[clamp(6rem,16vh,12rem)] h-[clamp(6rem,16vh,12rem)] rounded-lg" />
-                <div className="mt-6 w-[min(16rem,60vw)]">
-                  <Skeleton className="h-7 w-3/4 mx-auto mb-2" />
-                  <Skeleton className="h-4 w-1/2 mx-auto" />
+                <div className="w-[clamp(6rem,16vh,12rem)] h-[clamp(6rem,16vh,12rem)] rounded-lg bg-gray-700" />
+                <div className="mt-6 w-[min(16rem,60vw)] text-gray-400">
+                  <p className="text-base">No track playing</p>
                 </div>
               </div>
-            )
-          ) : (
-            <div className="flex flex-col items-center flex-grow text-center justify-center min-h-[clamp(12rem,24vh,16rem)]">
-              <Skeleton className="w-[clamp(6rem,16vh,12rem)] h-[clamp(6rem,16vh,12rem)] rounded-lg" />
-              <div className="mt-6 w-[min(16rem,60vw)]">
-                <Skeleton className="h-7 w-3/4 mx-auto mb-2" />
-                <Skeleton className="h-4 w-1/2 mx-auto" />
-              </div>
-            </div>
-          )}
+            )}
           </ErrorBoundary>
         </div>
 
@@ -104,8 +104,17 @@ export default function Home() {
           <h2 className="text-lg font-bold mb-3 text-gray-300 tracking-wider text-center">Up Next</h2>
           <ErrorBoundary>
             <div className="flex-grow flex flex-col justify-center">
-            {isLoading.queue ? (
-              upNext.length > 0 ? (
+              {isLoading.queue ? (
+                // Loading queue: show skeleton
+                <div className="flex items-center space-x-3 p-2 rounded-lg h-20">
+                  <Skeleton className="w-20 h-20 rounded-md" />
+                  <div className="flex-grow">
+                    <Skeleton className="h-5 w-28 mb-2" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                </div>
+              ) : upNext.length > 0 ? (
+                // Ready and we have an upcoming track
                 <div className="flex items-center space-x-3 p-2 rounded-lg h-20">
                   {upNext[0]?.image ? (
                     <img
@@ -114,7 +123,7 @@ export default function Home() {
                       className="w-20 h-20 rounded-md object-cover"
                     />
                   ) : (
-                    <Skeleton className="w-20 h-20 rounded-md" />
+                    <div className="w-20 h-20 rounded-md bg-gray-700" />
                   )}
                   <div className="flex-grow min-w-0">
                     <p className="font-semibold text-base truncate">{upNext[0].name}</p>
@@ -122,19 +131,11 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
+                // Ready but no queue
                 <div className="flex items-center justify-center h-20 rounded-lg">
                   <p className="text-gray-300 text-sm">Queue is empty</p>
                 </div>
-              )
-            ) : (
-              <div className="flex items-center space-x-3 p-2 rounded-lg h-20">
-                <Skeleton className="w-20 h-20 rounded-md" />
-                <div className="flex-grow">
-                  <Skeleton className="h-5 w-28 mb-2" />
-                  <Skeleton className="h-4 w-20" />
-                </div>
-              </div>
-            )}
+              )}
             </div>
           </ErrorBoundary>
         </div>
