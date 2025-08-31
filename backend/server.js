@@ -175,6 +175,48 @@ async function authenticateSpotify() {
 // Load saved tokens on startup
 const tokensLoaded = loadTokens();
 
+// Function to update albums that don't have tracks
+async function updateAlbumsWithTracks() {
+  let updatedCount = 0;
+  console.log('Checking for albums without tracks...');
+
+  for (let i = 0; i < albums.length; i++) {
+    const album = albums[i];
+    if (!album.tracks || album.tracks.length === 0) {
+      try {
+        console.log(`Updating album "${album.name}" with tracks...`);
+        const tracksData = await spotifyApiClient.getAlbumTracks(album.id, { market: 'US', limit: 50 });
+
+        albums[i] = {
+          ...album,
+          tracks: tracksData.body.items.map(track => ({
+            id: track.id,
+            name: track.name,
+            duration_ms: track.duration_ms,
+            artist: track.artists[0]?.name || album.artist,
+            track_number: track.track_number,
+            disc_number: track.disc_number
+          }))
+        };
+        updatedCount++;
+        console.log(`✅ Updated "${album.name}" with ${albums[i].tracks.length} tracks`);
+
+        // Small delay to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (error) {
+        console.error(`Failed to update tracks for "${album.name}":`, error.message);
+      }
+    }
+  }
+
+  if (updatedCount > 0) {
+    fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+    console.log(`📁 Saved ${updatedCount} updated albums to JSON file`);
+  } else {
+    console.log('✅ All albums already have tracks');
+  }
+}
+
 // Initialize authentication
 authenticateSpotify();
 setInterval(authenticateSpotify, 3300000); // Refresh token every 55 minutes
@@ -192,6 +234,15 @@ if (tokensLoaded && refreshToken) {
   setTimeout(() => {
     refreshAccessToken();
   }, 1000); // Wait 1 second after startup
+}
+
+// Check and update albums without tracks (only if needed)
+const albumsWithoutTracks = albums.filter(album => !album.tracks || album.tracks.length === 0);
+if (albumsWithoutTracks.length > 0) {
+  console.log(`Found ${albumsWithoutTracks.length} albums without tracks, updating...`);
+  setTimeout(() => {
+    updateAlbumsWithTracks();
+  }, 2000); // Wait 2 seconds after startup
 }
 
 // Log authentication status
@@ -462,6 +513,21 @@ app.get('/api/album/:id', async (req, res) => {
     return res.status(404).json({ error: 'Album not found' });
   }
 
+  // If we have tracks stored locally, use them
+  if (localAlbum.tracks && localAlbum.tracks.length > 0) {
+    console.log(`✅ Using local tracks for album "${localAlbum.name}" (${localAlbum.tracks.length} tracks)`);
+    const albumWithLocalTracks = {
+      id: localAlbum.id,
+      name: localAlbum.name,
+      artist: localAlbum.artist,
+      image: localAlbum.image,
+      tracks: localAlbum.tracks
+    };
+    albumCache.set(cacheKey, { data: albumWithLocalTracks, timestamp: Date.now() });
+    return res.json(albumWithLocalTracks);
+  }
+
+  // Only fetch from Spotify if we don't have local tracks
   try {
     console.log(`Fetching album details and tracks for ${albumId} from Spotify API`);
     // Get album details and tracks in parallel
@@ -479,7 +545,9 @@ app.get('/api/album/:id', async (req, res) => {
         id: track.id,
         name: track.name,
         duration_ms: track.duration_ms,
-        artist: track.artists[0]?.name
+        artist: track.artists[0]?.name,
+        track_number: track.track_number,
+        disc_number: track.disc_number
       }))
     };
 
@@ -819,6 +887,9 @@ app.get('/api/debug', (req, res) => {
     ageMinutes: Math.round((now - value.timestamp) / 60000)
   }));
 
+  const albumsWithTracks = albums.filter(album => album.tracks && album.tracks.length > 0).length;
+  const totalTracks = albums.reduce((sum, album) => sum + (album.tracks ? album.tracks.length : 0), 0);
+
   res.json({
     cacheSize: albumCache.size,
     cacheEntries: cacheInfo,
@@ -829,6 +900,12 @@ app.get('/api/debug', (req, res) => {
       refreshToken: !!refreshToken,
       tokensLoaded: tokensLoaded,
       clientToken: !!spotifyApiClient.getAccessToken()
+    },
+    albumData: {
+      totalAlbums: albums.length,
+      albumsWithTracks,
+      albumsWithoutTracks: albums.length - albumsWithTracks,
+      totalTracks
     },
     consecutiveErrors,
     rateLimitTracking: {
@@ -854,20 +931,82 @@ app.post('/api/admin/clear-tokens', (req, res) => {
   }
 });
 
-app.post('/api/admin/albums', (req, res) => {
+app.post('/api/admin/albums', async (req, res) => {
   const newAlbum = req.body;
   if (!albums.find(a => a.id === newAlbum.id)) {
-    albums.push(newAlbum);
-    // Save to file
-    fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
-    // Broadcast albums update so clients refresh immediately
     try {
-      sendUpdate({ type: 'albums', albums });
-    } catch (e) {
-      console.error('WS broadcast failed after add:', e);
+      console.log(`Adding new album: ${newAlbum.name} (${newAlbum.id})`);
+
+      // Fetch complete album data including tracks from Spotify
+      const [albumData, tracksData] = await Promise.all([
+        spotifyApiClient.getAlbum(newAlbum.id, { market: 'US' }),
+        spotifyApiClient.getAlbumTracks(newAlbum.id, { market: 'US', limit: 50 })
+      ]);
+
+      // Create complete album object with tracks
+      const completeAlbum = {
+        id: albumData.body.id,
+        name: albumData.body.name,
+        artist: albumData.body.artists[0].name,
+        image: albumData.body.images[0]?.url || newAlbum.image,
+        position: newAlbum.position || albums.length,
+        tracks: tracksData.body.items.map(track => ({
+          id: track.id,
+          name: track.name,
+          duration_ms: track.duration_ms,
+          artist: track.artists[0]?.name || albumData.body.artists[0].name,
+          track_number: track.track_number,
+          disc_number: track.disc_number
+        }))
+      };
+
+      albums.push(completeAlbum);
+      console.log(`✅ Added album "${completeAlbum.name}" with ${completeAlbum.tracks.length} tracks`);
+
+      // Save to file
+      fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+
+      // Broadcast albums update so clients refresh immediately
+      try {
+        sendUpdate({ type: 'albums', albums });
+      } catch (e) {
+        console.error('WS broadcast failed after add:', e);
+      }
+
+      res.json({
+        success: true,
+        album: completeAlbum,
+        tracksCount: completeAlbum.tracks.length
+      });
+
+    } catch (error) {
+      console.error('Error fetching album data for admin add:', error);
+
+      // Fallback: add basic album data if Spotify fetch fails
+      console.log('⚠️  Falling back to basic album data');
+      const basicAlbum = {
+        ...newAlbum,
+        tracks: [] // Empty tracks array as fallback
+      };
+      albums.push(basicAlbum);
+      fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+
+      try {
+        sendUpdate({ type: 'albums', albums });
+      } catch (e) {
+        console.error('WS broadcast failed after add:', e);
+      }
+
+      res.json({
+        success: true,
+        album: basicAlbum,
+        tracksCount: 0,
+        warning: 'Album added with basic data only (Spotify fetch failed)'
+      });
     }
+  } else {
+    res.status(400).json({ error: 'Album already exists' });
   }
-  res.json({ success: true });
 });
 
 app.delete('/api/admin/albums/:id', (req, res) => {
