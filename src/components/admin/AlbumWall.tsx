@@ -22,14 +22,7 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  // Compute responsive grid layout based on album count
-  const getGridLayout = (albumCount: number) => {
-    if (albumCount <= 6) return { cols: 3, gap: 4 };
-    if (albumCount <= 12) return { cols: 4, gap: 3 };
-    if (albumCount <= 20) return { cols: 5, gap: 2 };
-    if (albumCount <= 30) return { cols: 6, gap: 1 };
-    return { cols: 8, gap: 1 };
-  };
+
 
   // Ensure unique albums by id to avoid React key warnings when duplicates slip in
   const uniqueAlbums = useMemo(() => {
@@ -102,24 +95,15 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
   };
 
   return (
-    <div
-      className="grid gap-4"
-      style={{
-        gridTemplateColumns: `repeat(${getGridLayout(albums.length).cols}, 1fr)`,
-        gap: `${Math.max(2, getGridLayout(albums.length).gap - 1)}px`
-      }}
-      onDragOver={(e) => {
-        if (draggedAlbum) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      }}
-    >
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-x-6 gap-y-8">
       {albumsLoading ? (
-        Array.from({ length: Math.min(20, Math.max(6, albums.length || 6)) }).map((_, i) => (
-          <div key={i} className="flex flex-col min-h-0">
-            <div className="aspect-square bg-gray-700 rounded-lg flex-shrink-0" />
-            <div className="mt-1 px-1 h-8 bg-gray-700 rounded flex-1" />
+        Array.from({ length: 14 }).map((_, i) => (
+          <div key={i} className="flex flex-col items-start space-y-2">
+            <div className="w-full aspect-square bg-gray-700 rounded-md" />
+            <div className="text-left w-full">
+              <div className="h-4 bg-gray-700 rounded mb-1" />
+              <div className="h-3 bg-gray-600 rounded" />
+            </div>
           </div>
         ))
       ) : (
@@ -143,9 +127,9 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, index)}
                 onDragEnd={handleDragEnd}
-                className={`group relative flex flex-col min-h-0 cursor-move transition-all duration-200 select-none ${
+                className={`flex flex-col items-start space-y-2 cursor-move transition-all duration-200 select-none ${
                   isDraggedItem ? "opacity-50 scale-95" : ""
-                } ${isDropTarget ? "ring-2 ring-blue-500 ring-offset-2" : ""} ${
+                } ${isDropTarget ? "ring-2 ring-blue-500" : ""} ${
                   shouldShift ? "transform translate-x-2" : ""
                 }`}
                 style={{
@@ -155,26 +139,22 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
                   WebkitUserSelect: "none",
                 }}
               >
-                <div className="relative aspect-square bg-gray-700 rounded-lg overflow-hidden cursor-pointer hover:scale-105 transition-transform flex-shrink-0">
+                <div className="relative w-full aspect-square rounded-md overflow-hidden">
                   <img
                     src={album.image}
-                    alt={`${album.name} album cover`}
-                    className="w-full h-full object-cover"
+                    alt={`Album cover for ${album.name}`}
+                    className="w-full aspect-square object-cover rounded-md"
                   />
                   <button
                     onClick={() => onRemove(album.id)}
-                    className="absolute top-1 right-1 w-6 h-6 bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 text-xs"
+                    className="absolute top-2 right-2 w-6 h-6 bg-red-600 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-xs"
                   >
                     ×
                   </button>
                 </div>
-                <div className="mt-1 px-1 flex-1 min-h-0">
-                  <div className="text-xs font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis leading-tight">
-                    {album.name}
-                  </div>
-                  <div className="text-xs text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis leading-tight">
-                    {album.artist}
-                  </div>
+                <div className="text-left w-full">
+                  <p className="font-semibold text-white text-sm leading-tight">{album.name}</p>
+                  <p className="text-sm text-gray-400 leading-tight">{album.artist}</p>
                 </div>
               </div>
             );
