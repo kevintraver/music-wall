@@ -502,6 +502,17 @@ export default function AdminPage() {
         <main className="flex-grow">
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Now Playing panel */}
+              <NowPlayingPanel
+                nowPlaying={nowPlaying}
+                isPlaying={isPlaying}
+                playbackLoaded={playbackLoaded}
+                playbackUpdatePending={playbackUpdatePending}
+                playbackActionLoading={playbackActionLoading}
+                onAction={handlePlaybackAction}
+                colSpan="lg:col-span-2"
+              />
+
               {/* Queue panel */}
               <div className="lg:col-span-1 bg-white p-6 rounded-xl shadow-md flex flex-col">
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">Queue</h2>
@@ -545,16 +556,6 @@ export default function AdminPage() {
                   )}
                 </div>
               </div>
-
-              {/* Now Playing panel */}
-              <NowPlayingPanel
-                nowPlaying={nowPlaying}
-                isPlaying={isPlaying}
-                playbackLoaded={playbackLoaded}
-                playbackUpdatePending={playbackUpdatePending}
-                playbackActionLoading={playbackActionLoading}
-                onAction={handlePlaybackAction}
-              />
             </div>
 
             {/* Wall (left) + Search (right) */}

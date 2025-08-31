@@ -18,6 +18,7 @@ type Props = {
   playbackUpdatePending: boolean;
   playbackActionLoading: string | null;
   onAction: (action: "previous" | "play" | "pause" | "next", endpoint: string) => void;
+  colSpan?: string;
 };
 
 function NowPlayingPanelImpl({
@@ -27,9 +28,10 @@ function NowPlayingPanelImpl({
   playbackUpdatePending,
   playbackActionLoading,
   onAction,
+  colSpan = "lg:col-span-2",
 }: Props) {
   return (
-    <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md flex flex-col">
+    <div className={`${colSpan} bg-white p-6 rounded-xl shadow-md flex flex-col`}>
       <h2 className="text-xl font-semibold text-gray-800 mb-4">Now Playing</h2>
       <div className="flex-grow flex flex-col sm:flex-row items-center justify-center text-center bg-gray-800 text-white p-6 rounded-lg mb-4 gap-6 relative">
         {playbackUpdatePending && (
