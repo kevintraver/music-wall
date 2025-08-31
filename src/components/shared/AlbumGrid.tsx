@@ -83,11 +83,13 @@ export default function AlbumGrid({ albums, albumsLoading, qrs, centerText, rend
       gap: '16px',
       justifyContent: 'center',
       alignItems: 'start',
+      width: '100%',
+      minHeight: 'fit-content',
     };
   }, [showQr]);
 
   return (
-    <div style={gridStyle}>
+    <div style={gridStyle} className="w-full">
       {albumsLoading ? (
         Array.from({ length: 14 }).map((_, i) => (
           <AlbumSkeleton key={i} shouldCenterText={shouldCenterText} />

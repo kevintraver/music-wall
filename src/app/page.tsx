@@ -60,10 +60,10 @@ export default function Home() {
 
 
   return (
-    <div className="h-screen bg-black text-white px-8 lg:px-10 pt-10 pb-6 flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-black text-white px-8 lg:px-10 pt-10 pb-6 flex flex-col">
       <ErrorBoundary>
         {/* Album Grid (auto-fits without bumping bottom) */}
-        <div className="flex-1 min-h-0 overflow-hidden px-0 mb-8">
+        <div className="flex-1 min-h-0 overflow-y-auto px-0 mb-8">
           <ResponsiveAlbumGrid albums={albums} qrs={qrs} albumsLoading={isLoading.albums} />
         </div>
       </ErrorBoundary>
