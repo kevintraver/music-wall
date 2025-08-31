@@ -119,7 +119,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: albumId } = await params;
-  const clientIP = request.ip || 'unknown';
+  const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
   const now = Date.now();
 
   // Check rate limit for individual album requests
