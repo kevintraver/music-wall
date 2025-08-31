@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "ws": "tsx src/websocket/start-websocket.ts",
-    "update-album-art": "node scripts/update-album-art.js"
+    "update-album-art": "node scripts/update-album-art.js",
+    "update-default-tracks": "tsx scripts/update-default-tracks.ts"
   },
   "dependencies": {
     "dotenv": "^17.2.1",
