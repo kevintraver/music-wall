@@ -16,8 +16,9 @@ interface AlbumItemProps {
 
 function AlbumItem({ album, index, showQr, qrs, shouldCenterText, renderOverlayAction }: AlbumItemProps) {
   return (
-    <div className={`flex flex-col ${shouldCenterText ? "items-center" : "items-start"} space-y-2 w-full`}>
-      <div className="relative w-full aspect-square rounded-md overflow-hidden">
+    <div className={`flex flex-col ${shouldCenterText ? "items-center" : "items-start"} w-full`}>
+      {/* Album Cover */}
+      <div className="relative w-full aspect-square rounded-md overflow-hidden mb-3">
         <img
           src={album.image}
           alt={`Album cover for ${album.name}`}
@@ -25,12 +26,16 @@ function AlbumItem({ album, index, showQr, qrs, shouldCenterText, renderOverlayA
         />
         {renderOverlayAction && renderOverlayAction(album, index)}
       </div>
-      <div className={`${shouldCenterText ? "text-center" : "text-left"} w-full`}>
+
+      {/* Album Text - Fixed height container */}
+      <div className={`${shouldCenterText ? "text-center" : "text-left"} w-full mb-3 h-12 flex flex-col justify-start`}>
         <p className="font-semibold text-white text-sm leading-tight line-clamp-2 overflow-hidden">{album.name}</p>
-        <p className="text-sm text-gray-400 leading-tight line-clamp-2 overflow-hidden">{album.artist}</p>
+        <p className="text-sm text-gray-400 leading-tight line-clamp-1 overflow-hidden">{album.artist}</p>
       </div>
+
+      {/* QR Code - Always positioned at same level */}
       {showQr && qrs && qrs[album.id] ? (
-        <div className="mt-2 w-full flex justify-center">
+        <div className="w-full flex justify-center flex-shrink-0">
           <Image
             src={qrs[album.id]}
             alt="QR Code"
@@ -39,7 +44,10 @@ function AlbumItem({ album, index, showQr, qrs, shouldCenterText, renderOverlayA
             className="rounded"
           />
         </div>
-      ) : null}
+      ) : (
+        /* Spacer to maintain consistent height when no QR */
+        <div className="h-[60px] w-full flex-shrink-0"></div>
+      )}
     </div>
   );
 }
@@ -51,11 +59,19 @@ interface AlbumSkeletonProps {
 
 function AlbumSkeleton({ shouldCenterText }: AlbumSkeletonProps) {
   return (
-    <div className={`flex flex-col ${shouldCenterText ? "items-center" : "items-start"} space-y-2 w-full`}>
-      <div className="w-full aspect-square bg-gray-700 rounded-md" />
-      <div className={`${shouldCenterText ? "text-center" : "text-left"} w-full`}>
+    <div className={`flex flex-col ${shouldCenterText ? "items-center" : "items-start"} w-full`}>
+      {/* Album Cover Skeleton */}
+      <div className="w-full aspect-square bg-gray-700 rounded-md mb-3" />
+
+      {/* Album Text Skeleton - Fixed height */}
+      <div className={`${shouldCenterText ? "text-center" : "text-left"} w-full mb-3 h-12 flex flex-col justify-start`}>
         <div className="h-4 bg-gray-700 rounded mb-1" />
         <div className="h-3 bg-gray-600 rounded" />
+      </div>
+
+      {/* QR Code Skeleton - Consistent height */}
+      <div className="w-full flex justify-center flex-shrink-0">
+        <div className="w-[60px] h-[60px] bg-gray-700 rounded" />
       </div>
     </div>
   );
