@@ -52,18 +52,21 @@ export default function AdminPage() {
     fetch('/api/admin/status')
       .then(res => res.json())
       .then(data => {
+        console.log('Auth status:', data); // Debug log
 
-      if (!data.authenticated) {
+        if (!data.authenticated) {
+          console.log('Not authenticated, redirecting to login');
+          router.push('/login');
+          return;
+        }
 
+        console.log('Authenticated, showing admin panel');
+        setIsLoggedIn(true);
+      })
+      .catch(error => {
+        console.error('Error checking auth status:', error);
         router.push('/login');
-
-        return;
-
-      }
-
-      setIsLoggedIn(true);
-
-    });
+      });
   }, [router]);
 
   useEffect(() => {
@@ -468,6 +471,17 @@ export default function AdminPage() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST' });
+      router.push('/login');
+    } catch (error) {
+      console.error('Error logging out:', error);
+      // Still redirect to login even if logout API fails
+      router.push('/login');
+    }
+  };
+
 
 
 
@@ -492,6 +506,13 @@ export default function AdminPage() {
                   title="Refresh playback data"
                 >
                   Refresh
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
+                  title="Logout"
+                >
+                  Logout
                 </button>
               </div>
             </div>

@@ -3,22 +3,6 @@ import fs from 'fs';
 import path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
 import { getCodeVerifier } from '@/lib/oauth';
-import os from 'os';
-
-function getLocalIP() {
-  const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        return iface.address;
-      }
-    }
-  }
-  return 'localhost';
-}
-
-const localIP = getLocalIP();
-console.log('Local IP for QR codes:', localIP);
 
 // OAuth variables
 let accessToken = '';
@@ -41,12 +25,8 @@ function saveTokens() {
   }
 }
 
-// Spotify API setup
-const spotifyApi = new SpotifyWebApi({
-  clientId: process.env.SPOTIFY_CLIENT_ID,
-  clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
-  redirectUri: 'http://127.0.0.1:3000/callback'
-});
+// Spotify API setup - will be updated with correct redirect URI
+let spotifyApi: SpotifyWebApi;
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -57,6 +37,16 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const host = request.headers.get('host') || 'localhost:3000';
+    const redirectUri = `http://${host}/callback`;
+
+    // Initialize Spotify API with correct redirect URI
+    spotifyApi = new SpotifyWebApi({
+      clientId: process.env.SPOTIFY_CLIENT_ID,
+      clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
+      redirectUri: redirectUri
+    });
+
     const codeVerifier = getCodeVerifier();
     const response = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
@@ -67,7 +57,7 @@ export async function GET(request: NextRequest) {
         client_id: process.env.SPOTIFY_CLIENT_ID!,
         grant_type: 'authorization_code',
         code: code,
-        redirect_uri: 'http://127.0.0.1:3000/callback',
+        redirect_uri: redirectUri,
         code_verifier: codeVerifier,
       }),
     });
@@ -78,8 +68,8 @@ export async function GET(request: NextRequest) {
     saveTokens(); // Save tokens to file
     console.log('Successfully authenticated and saved Spotify tokens');
 
-    // Redirect to admin page
-    return NextResponse.redirect(`http://${localIP}:3000/admin`);
+    // Redirect to admin page using the same hostname as the request
+    return NextResponse.redirect(`http://${host}/admin`);
   } catch (error) {
     console.error('Error exchanging code:', error);
     return NextResponse.json({ error: 'Auth failed' }, { status: 500 });

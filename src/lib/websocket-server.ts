@@ -1,4 +1,4 @@
-import WebSocket from 'ws';
+import WebSocket, { WebSocketServer } from 'ws';
 import fs from 'fs';
 import path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
@@ -38,8 +38,10 @@ function saveTokens() {
   }
 }
 
+
+
 // Load saved tokens
-const tokensLoaded = loadTokens();
+loadTokens();
 
 // Spotify API setup
 const spotifyApi = new SpotifyWebApi({
@@ -90,12 +92,12 @@ async function refreshAccessToken() {
 const WS_PORT = process.env.WS_PORT ? Number(process.env.WS_PORT) : 3002;
 
 export function startWebSocketServer() {
-  const wss = new WebSocket.Server({ port: WS_PORT });
+  const wss = new WebSocketServer({ port: WS_PORT });
   console.log('WebSocket server listening on port', WS_PORT);
 
   const clients: WebSocket[] = [];
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws: WebSocket) => {
     console.log('Client connected');
     clients.push(ws);
     ws.on('close', () => {
@@ -119,7 +121,6 @@ export function startWebSocketServer() {
 let lastApiCall = 0;
 const MIN_API_INTERVAL = 5000;
 let consecutiveErrors = 0;
-const MAX_CONSECUTIVE_ERRORS = 3;
 
 let circuitBreakerState = 'CLOSED';
 let circuitBreakerFailures = 0;
@@ -212,17 +213,7 @@ function getRetryAfterDelay(error: any) {
   return 0;
 }
 
-async function handleRateLimitError(error: any, operation: string) {
-  if (error.statusCode === 429) {
-    const delay = getRetryAfterDelay(error);
-    if (delay > 0) {
-      console.log(`Rate limited during ${operation}, waiting ${delay}ms before retry...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return true;
-    }
-  }
-  return false;
-}
+
 
   // Poll for now playing and queue, send to WS clients
   setInterval(async () => {
@@ -267,10 +258,10 @@ async function handleRateLimitError(error: any, operation: string) {
         consecutiveErrors = 0;
 
         console.log('Now playing:', nowPlayingRes.body.item ? nowPlayingRes.body.item.name : 'None');
-        console.log('Queue length:', queueRes.body.queue ? queueRes.body.queue.length : 0);
+        console.log('Queue length:', (queueRes.body as any).queue ? (queueRes.body as any).queue.length : 0);
 
         const update = {
-          nowPlaying: nowPlayingRes.body.item ? {
+          nowPlaying: nowPlayingRes.body.item && 'artists' in nowPlayingRes.body.item ? {
             id: nowPlayingRes.body.item.id,
             name: nowPlayingRes.body.item.name,
             artist: nowPlayingRes.body.item.artists[0].name,
@@ -278,7 +269,7 @@ async function handleRateLimitError(error: any, operation: string) {
             image: nowPlayingRes.body.item.album.images[0]?.url
           } : null,
           isPlaying: nowPlayingRes.body.is_playing || false,
-          queue: queueRes.body.queue ? queueRes.body.queue.slice(0, 10).map((track: any) => ({
+          queue: (queueRes.body as any).queue ? (queueRes.body as any).queue.slice(0, 10).map((track: any) => ({
             id: track.id,
             name: track.name,
             artist: track.artists[0].name,
@@ -315,5 +306,5 @@ async function handleRateLimitError(error: any, operation: string) {
   }, 3000000); // Refresh user token every 50 min
 }
 
-// Export functions for use in API routes
-export { sendUpdate };
+// WebSocket server started
+console.log('WebSocket server module loaded');
