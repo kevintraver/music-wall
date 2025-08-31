@@ -51,12 +51,39 @@ export default function AlbumWall({ albums, albumsLoading, onRemove }: Props) {
                   <span className="material-icons text-sm">delete</span>
                 </button>
               </div>
-                <div className="text-center px-2 py-2 opacity-100">
-                  <div className="text-sm font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis leading-tight text-center">
-                    {album.name}
+                <div className="mt-3 w-full px-2">
+                  <div style={{ height: 32, overflow: "hidden", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+                    <p
+                      className="text-center font-semibold text-white leading-tight"
+                      style={{
+                        width: "100%",
+                        maxWidth: 120,
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                        fontSize: "14px",
+                      }}
+                    >
+                      {album.name}
+                    </p>
                   </div>
-                  <div className="text-xs text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis leading-tight text-center">
-                    {album.artist}
+                  <div style={{ height: 4 }} />
+                  <div style={{ height: 16, overflow: "hidden" }}>
+                    <p
+                      className="text-center text-gray-400 leading-tight"
+                      style={{
+                        width: "100%",
+                        maxWidth: 120,
+                        display: "-webkit-box",
+                        WebkitLineClamp: 1,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                        fontSize: "12px",
+                      }}
+                    >
+                      {album.artist}
+                    </p>
                   </div>
                 </div>
             </div>
