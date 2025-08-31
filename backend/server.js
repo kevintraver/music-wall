@@ -139,7 +139,7 @@ async function refreshAccessToken() {
 // Load albums from JSON
 function loadAlbums() {
   try {
-    const data = fs.readFileSync(path.join(__dirname, '../albums.json'), 'utf8');
+    const data = fs.readFileSync(path.join(__dirname, './albums.json'), 'utf8');
     return JSON.parse(data);
   } catch (error) {
     console.error('Error loading albums.json:', error);
@@ -265,7 +265,7 @@ async function updateAlbumsWithTracks() {
 
   if (updatedCount > 0) {
     try {
-      fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+      fs.writeFileSync(path.join(__dirname, './albums.json'), JSON.stringify(albums, null, 2));
       console.log(`📁 Saved ${updatedCount} updated albums to JSON file`);
     } catch (error) {
       console.error('❌ Failed to save albums.json:', error);
@@ -847,7 +847,7 @@ app.get('/api/album/:id', async (req, res) => {
     if (albumIndex !== -1) {
       albums[albumIndex] = { ...albums[albumIndex], tracks: tracks };
       try {
-        fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+        fs.writeFileSync(path.join(__dirname, './albums.json'), JSON.stringify(albums, null, 2));
         console.log(`📁 Saved tracks for "${album.name}" to albums.json`);
       } catch (saveError) {
         console.error('❌ Failed to save updated tracks to albums.json:', saveError);
@@ -1357,7 +1357,7 @@ app.post('/api/admin/albums', async (req, res) => {
       console.log(`✅ Added album "${completeAlbum.name}" with ${completeAlbum.tracks.length} tracks`);
 
       // Save to file
-      fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+      fs.writeFileSync(path.join(__dirname, './albums.json'), JSON.stringify(albums, null, 2));
 
       // Broadcast albums update so clients refresh immediately
       try {
@@ -1408,7 +1408,7 @@ app.post('/api/admin/albums', async (req, res) => {
              albums.push(completeAlbum);
              console.log(`✅ Added album "${completeAlbum.name}" with ${completeAlbum.tracks.length} tracks (after retry)`);
 
-             fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+             fs.writeFileSync(path.join(__dirname, './albums.json'), JSON.stringify(albums, null, 2));
 
              try {
                sendUpdate({ type: 'albums', albums });
@@ -1434,7 +1434,7 @@ app.post('/api/admin/albums', async (req, res) => {
          tracks: [] // Empty tracks array as fallback
        };
        albums.push(basicAlbum);
-       fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+       fs.writeFileSync(path.join(__dirname, './albums.json'), JSON.stringify(albums, null, 2));
 
        try {
          sendUpdate({ type: 'albums', albums });
@@ -1457,7 +1457,7 @@ app.post('/api/admin/albums', async (req, res) => {
 app.delete('/api/admin/albums/:id', (req, res) => {
   const id = req.params.id;
   albums = albums.filter(a => a.id !== id);
-  fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+  fs.writeFileSync(path.join(__dirname, './albums.json'), JSON.stringify(albums, null, 2));
   // Broadcast albums update after delete
   try {
     sendUpdate({ type: 'albums', albums });
@@ -1483,7 +1483,7 @@ app.post('/api/admin/albums/reorder', (req, res) => {
   }));
 
   // Save to JSON file
-  fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+  fs.writeFileSync(path.join(__dirname, './albums.json'), JSON.stringify(albums, null, 2));
 
   // Send WebSocket update to all clients
   sendUpdate({ type: 'albums', albums });
