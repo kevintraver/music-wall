@@ -39,11 +39,10 @@ export default function AlbumPage() {
   const albumId = params.id as string;
   const [album, setAlbum] = useState<Album | null>(null);
   const [apiBase, setApiBase] = useState('');
-  const [message, setMessage] = useState('');
-  const [queuedTrack, setQueuedTrack] = useState<string>('');
   const [upNext, setUpNext] = useState<import("@/lib/spotify/queue").MinimalTrack[]>([]);
   const [pendingTrackId, setPendingTrackId] = useState<string | null>(null);
   const [albumLoading, setAlbumLoading] = useState(true);
+  const [tracksLoading, setTracksLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
 
@@ -90,6 +89,7 @@ export default function AlbumPage() {
         setAlbum(initial);
 
         if (!initial.tracks || initial.tracks.length === 0) {
+          setTracksLoading(true);
           // First try to fetch from server API (uses server credentials)
           try {
             const response = await fetch(`${apiBase}/api/album/${found.id}`);
@@ -120,6 +120,8 @@ export default function AlbumPage() {
             } else {
               console.warn('No access token available and server API failed; tracks will not be available');
             }
+          } finally {
+            setTracksLoading(false);
           }
         }
       } catch (err: any) {
@@ -228,21 +230,19 @@ export default function AlbumPage() {
                if (Array.isArray(albumsUpdate) && albumsUpdate.length > 0) {
                  try { saveAlbumsToStorage(albumsUpdate); } catch {}
                  const match = albumsUpdate.find((a: any) => a?.id === albumId);
-                 if (match) {
-                   setAlbum((prev) => prev ? prev : {
-                     id: match.id,
-                     name: match.name,
-                     artist: match.artist,
-                     image: match.image,
-                     position: (match as any).position ?? 0,
-                     tracks: []
-                   });
-                   setError(null);
-                   setAlbumLoading(false);
-                 } else {
-                   logger.info('Current album no longer exists, redirecting...');
-                   router.push('/');
-                 }
+                  if (match) {
+                    setAlbum((prev) => prev ? prev : {
+                      id: match.id,
+                      name: match.name,
+                      artist: match.artist,
+                      image: match.image,
+                      position: (match as any).position ?? 0,
+                      tracks: []
+                    });
+                    setError(null);
+                    setAlbumLoading(false);
+                    setTracksLoading(false);
+                  }
                }
                break;
 
@@ -307,8 +307,6 @@ export default function AlbumPage() {
     if (pendingTrackId === trackId) return;
     const track = album?.tracks.find(t => t.id === trackId);
     if (!track) {
-      setMessage('Track not found.');
-      setTimeout(() => setMessage(''), 3000);
       return;
     }
 
@@ -328,12 +326,9 @@ export default function AlbumPage() {
       });
 
       if (response.ok) {
-        setQueuedTrack(track.name);
-        setMessage('✅ Track queued successfully!');
-
         // Optimistically reflect queued state until WS updates
         setUpNext(prev => (
-          prev.some(t => t.id === trackId)
+          prev.some(t => t.id === trackId || t.uri === trackId)
             ? prev
             : [
                 ...prev,
@@ -346,24 +341,15 @@ export default function AlbumPage() {
               ]
         ));
 
-        // Clear success message after 3 seconds
-        setTimeout(() => {
-          setMessage('');
-          setQueuedTrack('');
-        }, 3000);
-
       } else if (response.status === 429 && retryCount < 2) {
         // Rate limited - retry after a delay
         const retryDelay = Math.pow(2, retryCount) * 1000; // Exponential backoff
-        setMessage(`Rate limited, retrying in ${retryDelay / 1000}s...`);
         setTimeout(() => queueTrack(trackId, retryCount + 1), retryDelay);
 
       } else if (response.status === 401) {
-        setMessage('❌ Queue unavailable. Ask the host to log into Admin.');
+        // Queue unavailable - silently fail
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        setMessage(`❌ Failed to queue track: ${errorData.error || 'Unknown error'}`);
-        setTimeout(() => setMessage(''), 5000);
+        // Failed to queue - silently fail
       }
 
     } catch (error) {
@@ -372,11 +358,9 @@ export default function AlbumPage() {
       if (retryCount < 2) {
         // Network error - retry
         const retryDelay = Math.pow(2, retryCount) * 1000;
-        setMessage(`Connection error, retrying in ${retryDelay / 1000}s...`);
         setTimeout(() => queueTrack(trackId, retryCount + 1), retryDelay);
       } else {
-        setMessage('❌ Failed to queue track. Please check your connection and try again.');
-        setTimeout(() => setMessage(''), 5000);
+        // Failed - silently fail
       }
     } finally {
       if (retryCount >= 2) {
@@ -446,19 +430,7 @@ export default function AlbumPage() {
           <h1 className="text-3xl font-bold mt-6 mb-2">{album.name}</h1>
           <p className="text-xl text-gray-300 mb-4">{album.artist}</p>
 
-          {/* Status Messages */}
-          {message && (
-            <div className="bg-green-600 text-white px-4 py-2 rounded-lg mb-4 inline-block">
-              {message}
-            </div>
-          )}
 
-          {queuedTrack && (
-            <div className="bg-blue-600 text-white px-4 py-3 rounded-lg mb-4">
-              <div className="text-sm opacity-90">Recently Queued</div>
-              <div className="font-semibold">{queuedTrack}</div>
-            </div>
-          )}
         </div>
 
         {/* Track List */}
@@ -532,7 +504,12 @@ export default function AlbumPage() {
             })}
           </div>
 
-          {(!album.tracks || album.tracks.length === 0) && (
+          {tracksLoading ? (
+            <div className="text-center py-8 text-gray-400">
+              <div className="w-8 h-8 border-4 border-gray-600 border-t-gray-400 rounded-full animate-spin mx-auto mb-4"></div>
+              <div>Loading tracks...</div>
+            </div>
+          ) : (!album.tracks || album.tracks.length === 0) && (
             <div className="text-center py-8 text-gray-400">
               <div className="text-4xl mb-4">🎵</div>
               <div>No tracks available for this album</div>
