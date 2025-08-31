@@ -135,7 +135,20 @@ export function startWebSocketServer() {
       }
     });
 
-    // Send an immediate snapshot on new connection
+    // Send albums snapshot on connect (from JSON file, if present)
+    try {
+      const albumsPath = path.join(process.cwd(), 'data', 'albums.json');
+      if (fs.existsSync(albumsPath)) {
+        const albums = JSON.parse(fs.readFileSync(albumsPath, 'utf8'));
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'albums', albums }));
+        }
+      }
+    } catch (_) {
+      // ignore read errors
+    }
+
+    // Send an immediate playback/queue snapshot on new connection
     fetchAndBroadcast().catch(() => {/* ignore */});
   });
 

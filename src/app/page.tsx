@@ -65,6 +65,8 @@ export default function Home() {
       ws.onopen = () => {
         console.log('WebSocket connected');
         reconnectAttempts = 0;
+        // Allow UI to render while waiting for first snapshot
+        setQueueLoaded(true);
 
         // Start heartbeat
         heartbeatInterval = setInterval(() => {
@@ -169,37 +171,7 @@ export default function Home() {
     };
   }, []);
 
-  // Seed queue initially from API in case WS message is delayed or lacks queue
-  useEffect(() => {
-    fetch('/api/queue')
-      .then(res => res.json())
-      .then((payload) => { setUpNext(normalizeQueue(payload)); setQueueLoaded(true); })
-      .catch(() => setQueueLoaded(true));
-  }, []);
-
-  // Poll queue as fallback if WS doesn’t include it continuously
-  useEffect(() => {
-    const pollingInterval = parseInt(process.env.NEXT_PUBLIC_QUEUE_POLLING_INTERVAL || '3000');
-    const id = window.setInterval(() => {
-      fetch('/api/queue')
-        .then(res => res.json())
-        .then((payload) => setUpNext(normalizeQueue(payload)))
-        .catch(() => {/* ignore */});
-    }, pollingInterval);
-    return () => window.clearInterval(id);
-  }, []);
-
-  // Poll albums periodically to ensure sync with admin changes
-  useEffect(() => {
-    const pollingInterval = parseInt(process.env.NEXT_PUBLIC_ALBUMS_POLLING_INTERVAL || '2000');
-    const id = window.setInterval(() => {
-      fetch('/api/albums')
-        .then(res => res.json())
-        .then((albumsData) => setAlbums(albumsData))
-        .catch(() => {/* ignore */});
-    }, pollingInterval);
-    return () => window.clearInterval(id);
-  }, []);
+  // Removed API usage for queue and albums on the wall; rely solely on WebSocket updates
 
 
 
