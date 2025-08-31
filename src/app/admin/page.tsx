@@ -460,30 +460,6 @@ export default function AdminPage() {
     }
   }, []);
 
-  const refreshPlaybackData = async () => {
-    try {
-      const [nowPlayingRes, queueRes] = await Promise.all([
-        fetch('/api/now-playing'),
-        fetch('/api/queue')
-      ]);
-
-      if (nowPlayingRes.ok) {
-        const nowPlayingData = await nowPlayingRes.json();
-        setNowPlaying(nowPlayingData);
-      }
-
-      if (queueRes.ok) {
-        const queueData = await queueRes.json();
-        setUpNext(queueData);
-      }
-
-      setPlaybackLoaded(true);
-      setQueueLoaded(true);
-    } catch (error) {
-      console.error('Error refreshing playback data:', error);
-    }
-  };
-
   // Handle album reorder coming from AlbumWall
   const handleReorder = async (updatedAlbums: Album[]) => {
     setAlbums(updatedAlbums);
@@ -541,18 +517,11 @@ export default function AdminPage() {
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
                   <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                  <span className="text-sm text-gray-600">
-                    {wsConnected ? 'Connected' : 'Disconnected'}
-                  </span>
-                </div>
-                <button
-                  onClick={refreshPlaybackData}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
-                  title="Refresh playback data"
-                >
-                  Refresh
-                </button>
-                <button
+                   <span className="text-sm text-gray-600" title={`WebSocket server: ws://${window.location.hostname}:3002`}>
+                     {wsConnected ? 'Connected' : 'Disconnected'}
+                   </span>
+                 </div>
+                 <button
                   onClick={handleLogout}
                   className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
                   title="Logout"
