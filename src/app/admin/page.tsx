@@ -145,7 +145,11 @@ export default function AdminPage() {
         setQueueLoaded(true);
 
         // Request fresh snapshot on connect
-        try { ws?.send(JSON.stringify({ type: 'refresh' })); } catch {}
+        try {
+          const { accessToken, refreshToken } = getTokens();
+          ws?.send(JSON.stringify({ type: 'auth', accessToken, refreshToken }));
+          ws?.send(JSON.stringify({ type: 'refresh' }));
+        } catch {}
 
         // Start heartbeat
         heartbeatInterval = setInterval(() => {

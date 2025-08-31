@@ -146,6 +146,20 @@ export function startWebSocketServer() {
           console.log('⟲ WS heartbeat pong sent');
           return;
         }
+        if (data.type === 'auth' && (data.accessToken || data.refreshToken)) {
+          console.log('🔑 WS received auth tokens from client', {
+            hasAccess: !!data.accessToken,
+            hasRefresh: !!data.refreshToken,
+          });
+          if (data.accessToken) {
+            accessToken = data.accessToken;
+            spotifyApi.setAccessToken(accessToken);
+          }
+          if (data.refreshToken) refreshToken = data.refreshToken;
+          try { saveTokens(); } catch {}
+          await fetchAndBroadcast();
+          return;
+        }
         if (data.type === 'refresh') {
           console.log('🛰️  WS refresh requested by client');
           await fetchAndBroadcast();
