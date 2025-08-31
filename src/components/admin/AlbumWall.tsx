@@ -174,27 +174,7 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
             </div>
           );
         }}
-      </AlbumGrid>
-
-      {/* Drag follower - shows dragged album following mouse */}
-      {draggedAlbum && dragPosition && (
-        <div
-          className="fixed pointer-events-none z-50 opacity-80 scale-95"
-          style={{
-            left: dragPosition.x - 60, // Center the 120px wide element on cursor
-            top: dragPosition.y - 60,  // Center the 120px tall element on cursor
-            transform: 'rotate(5deg)', // Slight rotation for visual feedback
-          }}
-        >
-          <div className="w-30 h-30 bg-gray-800 rounded-lg p-2 shadow-2xl border-2 border-blue-500">
-            <img
-              src={draggedAlbum.image}
-              alt={`${draggedAlbum.name} album cover`}
-              className="w-full h-full object-cover rounded"
-            />
-          </div>
-        </div>
-      )}
+      />
     </div>
   );
 }
