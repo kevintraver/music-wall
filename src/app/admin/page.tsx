@@ -52,6 +52,8 @@ export default function AdminPage() {
   const [queueLoaded, setQueueLoaded] = useState(false);
 
    const [playbackActionInProgress, setPlaybackActionInProgress] = useState<string | null>(null);
+  const playbackActionRef = useRef<string | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
    const [lastApiCall, setLastApiCall] = useState<number>(0);
   const [wsConnected, setWsConnected] = useState(false);
   const [showWsTooltip, setShowWsTooltip] = useState(false);
@@ -239,8 +241,17 @@ export default function AdminPage() {
             setQueueLoaded(true);
 
             // Clear loading states when WebSocket confirms updates
-
             setPlaybackUpdatePending(false);
+
+            // Clear timeout since we got the WebSocket update
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current);
+              timeoutRef.current = null;
+            }
+
+            // Re-enable playback button now that state is synchronized
+            setPlaybackActionInProgress(null);
+            playbackActionRef.current = null;
             return;
           }
           
@@ -261,6 +272,16 @@ export default function AdminPage() {
             // Update isPlaying if provided
             if (typeof (payload as any)?.isPlaying === 'boolean') {
               setIsPlaying((payload as any).isPlaying);
+
+              // Clear timeout since we got the WebSocket update
+              if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+                timeoutRef.current = null;
+              }
+
+              // Re-enable playback button now that state is synchronized
+              setPlaybackActionInProgress(null);
+              playbackActionRef.current = null;
             }
             // Only update queue if included (even if empty)
             if (payload && typeof payload === 'object' && 'queue' in (payload as any)) {
@@ -479,15 +500,15 @@ export default function AdminPage() {
     const handlePlaybackAction = useCallback(async (action: string, endpoint: string) => {
       const now = Date.now();
 
-      // Rate limiting: Prevent API calls more frequent than every 500ms
-      if (now - lastApiCall < 500) {
+      // Rate limiting: Prevent API calls more frequent than every 1000ms
+      if (now - lastApiCall < 1000) {
         console.log(`Playback action ${action} rate limited - too soon after last call`);
         return;
       }
 
-      // Double-check: Prevent multiple simultaneous playback actions
-      if (playbackActionInProgress) {
-        console.log(`Playback action ${action} blocked - ${playbackActionInProgress} already in progress`);
+      // Double-check: Prevent multiple simultaneous playback actions using ref for immediate check
+      if (playbackActionRef.current) {
+        console.log(`Playback action ${action} blocked - ${playbackActionRef.current} already in progress`);
         return;
       }
 
@@ -504,9 +525,25 @@ export default function AdminPage() {
       }
 
       try {
+        // Clear any existing timeout
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+
         // Disable button during API call
         setPlaybackActionInProgress(action);
+        playbackActionRef.current = action;
         console.log(`🎵 Starting ${action} request...`);
+
+        // Set a timeout to re-enable button if WebSocket doesn't respond within 5 seconds
+        timeoutRef.current = setTimeout(() => {
+          if (playbackActionRef.current === action) {
+            console.log(`⏰ Timeout: Re-enabling ${action} button after 5 seconds`);
+            setPlaybackActionInProgress(null);
+            playbackActionRef.current = null;
+            timeoutRef.current = null;
+          }
+        }, 5000);
 
         const { accessToken, refreshToken } = getTokens();
         const res = await fetch(endpoint, {
@@ -528,10 +565,20 @@ export default function AdminPage() {
 
         // Revert optimistic update on error
         setIsPlaying(originalIsPlaying);
-      } finally {
-        // Re-enable button after API call completes
+
+        // Clear timeout on error
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+
+        // Re-enable button on error
         setPlaybackActionInProgress(null);
-        console.log(`🔄 ${action} request completed`);
+        playbackActionRef.current = null;
+      } finally {
+        // Don't re-enable button yet - wait for WebSocket confirmation
+        // The button will be re-enabled when playbackUpdatePending becomes false
+        console.log(`🔄 ${action} API request completed, waiting for WebSocket sync`);
       }
     }, [isPlaying, playbackActionInProgress, lastApiCall]);
 
