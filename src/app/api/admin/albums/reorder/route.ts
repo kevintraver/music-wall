@@ -33,5 +33,13 @@ export async function POST(request: NextRequest) {
   // Save to JSON file
   fs.writeFileSync(ALBUMS_FILE, JSON.stringify(albums, null, 2));
 
+  // Send WebSocket update to all clients
+  if (global.sendWebSocketUpdate) {
+    global.sendWebSocketUpdate({
+      type: 'albums',
+      albums: albums
+    });
+  }
+
   return NextResponse.json({ success: true });
 }

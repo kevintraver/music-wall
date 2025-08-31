@@ -4,7 +4,7 @@ import path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI } from '@/lib/env';
 
-const TOKEN_FILE = path.join(process.cwd(), '.tokens', 'spotify-tokens.json');
+const TOKEN_FILE = path.join(process.cwd(), 'data', 'spotify-tokens.json');
 
 // OAuth variables
 let accessToken = '';
@@ -42,7 +42,7 @@ if (accessToken) {
 
 // Throttling for playback controls
 const playbackThrottle = {
-  pause: { lastCall: 0, minInterval: 1000 }
+  previous: { lastCall: 0, minInterval: 1000 }
 };
 
 function isThrottled(action: string) {
@@ -63,24 +63,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Admin not authenticated with Spotify' }, { status: 401 });
   }
 
-  if (isThrottled('pause')) {
+  if (isThrottled('previous')) {
     return NextResponse.json({ error: 'Playback commands are being sent too frequently. Please wait a moment.' }, { status: 429 });
   }
 
   try {
-    await spotifyApi.pause();
+    await spotifyApi.skipToPrevious();
 
-    // Send WebSocket update to all clients
+    // Send WebSocket update to all clients (will be picked up by next polling cycle)
     if (global.sendWebSocketUpdate) {
       global.sendWebSocketUpdate({
-        type: 'playback',
-        isPlaying: false
+        type: 'playback'
       });
     }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('Error pausing:', error);
+    console.error('Error skipping to previous:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

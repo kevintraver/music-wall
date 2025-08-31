@@ -72,7 +72,16 @@ export async function POST(request: NextRequest) {
     const activeDevice = devices.body.devices.find((d: any) => d.is_active);
 
     if (activeDevice) {
-      await spotifyApi.play({ device_id: activeDevice.id });
+      await spotifyApi.play({ device_id: activeDevice.id || undefined });
+
+      // Send WebSocket update to all clients
+      if (global.sendWebSocketUpdate) {
+        global.sendWebSocketUpdate({
+          type: 'playback',
+          isPlaying: true
+        });
+      }
+
       return NextResponse.json({ success: true });
     } else {
       return NextResponse.json({ error: 'No active Spotify device found' }, { status: 400 });

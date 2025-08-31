@@ -132,7 +132,7 @@ export default function AdminPage() {
         .then(res => res.json())
         .then((payload) => setUpNext(normalizeQueue(payload)))
         .catch(() => {/* ignore */});
-    }, 30000); // Reduced from 5s to 30s
+    }, 10000); // Reduced from 30000ms to 10000ms for faster fallback updates
     return () => window.clearInterval(id);
   }, [isLoggedIn]);
 

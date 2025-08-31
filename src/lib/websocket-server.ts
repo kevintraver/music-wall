@@ -4,6 +4,11 @@ import path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI } from '@/lib/env';
 
+// Declare global type for WebSocket update function
+declare global {
+  var sendWebSocketUpdate: (data: any) => void;
+}
+
 const TOKEN_FILE = path.join(process.cwd(), 'data', 'spotify-tokens.json');
 
 // OAuth variables
@@ -118,9 +123,12 @@ export function startWebSocketServer() {
     });
   }
 
+  // Export sendUpdate function for use in API routes
+  global.sendWebSocketUpdate = sendUpdate;
+
 // Rate limiting and circuit breaker for polling
 let lastApiCall = 0;
-const MIN_API_INTERVAL = 5000;
+const MIN_API_INTERVAL = 1000; // Reduced from 5000ms to 1000ms for faster updates
 let consecutiveErrors = 0;
 
 let circuitBreakerState = 'CLOSED';
@@ -164,8 +172,8 @@ function recordCircuitBreakerResult(success: boolean) {
 
 // Endpoint-specific rate limiting
 const endpointLimits = {
-  'getMyCurrentPlayingTrack': { calls: 0, windowStart: Date.now(), limit: 3, window: 3000 },
-  'getMyCurrentPlaybackState': { calls: 0, windowStart: Date.now(), limit: 3, window: 3000 },
+  'getMyCurrentPlayingTrack': { calls: 0, windowStart: Date.now(), limit: 10, window: 10000 }, // Increased limit and window for better real-time performance
+  'getMyCurrentPlaybackState': { calls: 0, windowStart: Date.now(), limit: 10, window: 10000 }, // Increased limit and window for better real-time performance
 };
 
 function checkEndpointRateLimit(endpoint: string) {
@@ -297,7 +305,7 @@ function getRetryAfterDelay(error: any) {
         }
       }
     }
-  }, 30000);
+  }, 5000); // Reduced from 30000ms to 5000ms for more frequent updates
 
   // Set up token refresh interval
   setInterval(() => {

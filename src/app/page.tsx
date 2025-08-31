@@ -1,6 +1,6 @@
 'use client';
 
-import Image from "next/image";
+
 import { useEffect, useState } from "react";
 import Skeleton from "@/components/Skeleton";
 import { normalizeQueue } from "@/lib/queue";
@@ -177,7 +177,7 @@ export default function Home() {
         .then(res => res.json())
         .then((payload) => setUpNext(normalizeQueue(payload)))
         .catch(() => {/* ignore */});
-    }, 30000); // Reduced from 5s to 30s
+    }, 10000); // Reduced from 30000ms to 10000ms for faster fallback updates
     return () => window.clearInterval(id);
   }, []);
 
@@ -188,7 +188,7 @@ export default function Home() {
         .then(res => res.json())
         .then((albumsData) => setAlbums(albumsData))
         .catch(() => {/* ignore */});
-    }, 10000); // Refresh albums every 10 seconds
+    }, 5000); // Reduced from 10000ms to 5000ms for faster album sync
     return () => window.clearInterval(id);
   }, []);
 

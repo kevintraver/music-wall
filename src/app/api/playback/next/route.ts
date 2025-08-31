@@ -69,6 +69,14 @@ export async function POST(request: NextRequest) {
 
   try {
     await spotifyApi.skipToNext();
+
+    // Send WebSocket update to all clients (will be picked up by next polling cycle)
+    if (global.sendWebSocketUpdate) {
+      global.sendWebSocketUpdate({
+        type: 'playback'
+      });
+    }
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error skipping:', error);
