@@ -100,6 +100,15 @@ export default function AdminPage() {
   const [pendingAddId, setPendingAddId] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
+  // Compute responsive grid layout based on album count
+  const getGridLayout = (albumCount: number) => {
+    if (albumCount <= 4) return { cols: 2, gap: 6 };
+    if (albumCount <= 9) return { cols: 3, gap: 5 };
+    if (albumCount <= 16) return { cols: 4, gap: 4 };
+    if (albumCount <= 25) return { cols: 5, gap: 3 };
+    return { cols: 6, gap: 2 };
+  };
+
   useEffect(() => {
     // Check auth status on load
     const { accessToken, refreshToken } = getTokens();
@@ -696,9 +705,15 @@ export default function AdminPage() {
               <div className="w-8"></div> {/* Spacer for balance */}
             </div>
             <div className="flex-1 overflow-y-auto pr-2">
-              <div className="grid grid-cols-3 gap-4">
+              <div
+                className="grid gap-4"
+                style={{
+                  gridTemplateColumns: `repeat(${getGridLayout(albums.length).cols}, 1fr)`,
+                  gap: `${getGridLayout(albums.length).gap * 4}px`
+                }}
+              >
                 {albumsLoading ? (
-                  Array.from({ length: 9 }).map((_, i) => (
+                  Array.from({ length: Math.min(12, Math.max(4, albums.length || 4)) }).map((_, i) => (
                     <div key={i} className="aspect-square bg-gray-700 rounded-xl" />
                   ))
                 ) : (
