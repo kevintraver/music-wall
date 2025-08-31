@@ -1,0 +1,54 @@
+'use client';
+
+import { useState, useEffect } from "react";
+
+export default function LoginPage() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [apiBase, setApiBase] = useState('');
+
+  useEffect(() => {
+    const base = `http://${window.location.hostname}:3001`;
+    setApiBase(base);
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = await fetch(`${apiBase}/api/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (data.redirect) {
+      window.location.href = `${apiBase}${data.redirect}`;
+    } else {
+      alert('Invalid credentials');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <form onSubmit={handleLogin} className="bg-gray-800 p-8 rounded">
+        <h1 className="text-2xl font-bold mb-4">Admin Login</h1>
+        <input
+          type="text"
+          placeholder="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          className="w-full p-2 mb-4 bg-gray-700 rounded"
+        />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="w-full p-2 mb-4 bg-gray-700 rounded"
+        />
+        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 p-2 rounded">
+          Login
+        </button>
+      </form>
+    </div>
+  );
+}
