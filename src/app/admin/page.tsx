@@ -7,6 +7,7 @@ import { normalizeQueue } from "@/lib/spotify/queue";
 import { getTokens, clearTokens } from "@/lib/auth/tokens";
 import { logger } from "@/lib/utils/logger";
 import { getAlbums, addAlbum, removeAlbum, saveAlbumsToStorage, resetToDefaults, setAlbumTracks } from "@/lib/utils/localStorage";
+import AddAlbumModal from "@/components/admin/AddAlbumModal";
 
 interface Album {
   id: string;
@@ -95,6 +96,7 @@ export default function AdminPage() {
     uptime: number;
     serverStartTime: string;
   } | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -633,8 +635,14 @@ export default function AdminPage() {
         <div className="grid grid-cols-[2fr_1fr] gap-6 min-h-0">
           {/* Current Wall Section */}
           <div className="bg-gray-800 rounded-2xl p-6 flex flex-col overflow-hidden">
-            <div className="mb-5 flex-shrink-0">
+            <div className="mb-5 flex-shrink-0 flex items-center justify-between">
               <h2 className="text-xl font-semibold">Current Wall</h2>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                Add Album
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto pr-2">
               <div className="grid grid-cols-3 gap-4">
@@ -708,6 +716,7 @@ export default function AdminPage() {
             </div>
         </div>
       </div>
+      <AddAlbumModal open={showAddModal} onClose={() => setShowAddModal(false)} />
     </div>
   );
 }
