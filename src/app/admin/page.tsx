@@ -17,6 +17,7 @@ interface Album {
   artist: string;
   image: string;
   position: number;
+  tracks?: { id: string; name: string; duration_ms: number; artist?: string; image?: string }[];
 }
 
 interface Track {
@@ -64,6 +65,26 @@ export default function AdminPage() {
     } catch (e) {
       console.warn('Failed to sync albums to WS:', e);
       throw e;
+    }
+  }, []);
+
+  // Fetch and persist tracks for any albums missing them
+  const ensureTracksForAlbums = useCallback(async (list: Album[]) => {
+    const missing = list.filter(a => !Array.isArray(a.tracks) || a.tracks.length === 0);
+    for (const a of missing) {
+      try {
+        const res = await fetch(`/api/album/${a.id}`);
+        if (!res.ok) continue;
+        const data = await res.json();
+        const tracks = Array.isArray(data?.tracks) ? data.tracks : [];
+        if (tracks.length > 0) {
+          const updated = setAlbumTracks(a.id, tracks);
+          setAlbums(updated);
+          albumsRef.current = updated;
+        }
+        // small delay to avoid hitting rate limits
+        await new Promise(r => setTimeout(r, 250));
+      } catch {}
     }
   }, []);
 
@@ -145,6 +166,9 @@ export default function AdminPage() {
           .then(async (loaded) => {
             setAlbums(loaded);
             try { await syncAlbums(loaded); } catch {}
+            // Fetch tracks for seeded defaults
+            // eslint-disable-next-line @typescript-eslint/no-floating-promises
+            ensureTracksForAlbums(loaded);
           })
           .finally(() => setAlbumsLoading(false));
         // Clean up URL
@@ -154,6 +178,9 @@ export default function AdminPage() {
           .then(async (loaded) => {
             setAlbums(loaded);
             try { await syncAlbums(loaded); } catch {}
+            // Ensure tracks exist for initial albums
+            // eslint-disable-next-line @typescript-eslint/no-floating-promises
+            ensureTracksForAlbums(loaded);
           })
           .finally(() => setAlbumsLoading(false));
       }
