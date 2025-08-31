@@ -24,7 +24,45 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - If you prefer the app to run on `http://localhost:3000` while the Spotify redirect uses `127.0.0.1`, set `APP_BASE_URL=http://localhost:3000`. The callback exchanges tokens on the Spotify host and then redirects to `APP_BASE_URL` for `/callback/success`.
 - The `SPOTIFY_REDIRECT_URI` must match character-for-character (scheme, host, port, path, no trailing slash) in both the authorize URL and the token exchange.
 
+### Set Up Initial Album Data
+
+- Copy `data/albums.example.json` to `data/albums.json` to start with some sample albums
+- The `data/albums.json` file is gitignored so your custom album selections won't be committed
+
 Admin login redirects to Spotify to grant access. Tokens are stored client-side for the admin dashboard and used by server routes for playback/queue.
+
+### WebSocket Server
+
+The app uses a separate WebSocket server for real-time updates. Start it alongside the Next.js app:
+
+```bash
+# Start both servers (recommended)
+just start-all
+
+# Or start individually
+npm run dev          # Next.js app
+npm run ws           # WebSocket server
+```
+
+The WebSocket server polls Spotify for updates and broadcasts them to all connected clients.
+
+### Performance Configuration
+
+You can customize polling intervals and rate limiting through environment variables:
+
+```bash
+# Server-side polling (WebSocket server)
+WS_POLLING_INTERVAL=2000          # How often to poll Spotify (default: 2000ms)
+MIN_API_INTERVAL=500              # Minimum time between API calls (default: 500ms)
+ENDPOINT_RATE_LIMIT=20            # API calls per time window (default: 20)
+ENDPOINT_RATE_WINDOW=5000         # Time window for rate limiting (default: 5000ms)
+
+# Client-side polling (fallback when WebSocket fails)
+NEXT_PUBLIC_QUEUE_POLLING_INTERVAL=3000   # Queue polling interval (default: 3000ms)
+NEXT_PUBLIC_ALBUMS_POLLING_INTERVAL=2000  # Albums polling interval (default: 2000ms)
+```
+
+Lower values provide faster updates but may hit Spotify's rate limits. Higher values reduce API usage but increase update delays.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

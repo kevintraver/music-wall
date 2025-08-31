@@ -128,7 +128,7 @@ export function startWebSocketServer() {
 
 // Rate limiting and circuit breaker for polling
 let lastApiCall = 0;
-const MIN_API_INTERVAL = 1000; // Reduced from 5000ms to 1000ms for faster updates
+const MIN_API_INTERVAL = parseInt(process.env.MIN_API_INTERVAL || '500'); // Configurable minimum API interval (default 500ms)
 let consecutiveErrors = 0;
 
 let circuitBreakerState = 'CLOSED';
@@ -172,8 +172,18 @@ function recordCircuitBreakerResult(success: boolean) {
 
 // Endpoint-specific rate limiting
 const endpointLimits = {
-  'getMyCurrentPlayingTrack': { calls: 0, windowStart: Date.now(), limit: 10, window: 10000 }, // Increased limit and window for better real-time performance
-  'getMyCurrentPlaybackState': { calls: 0, windowStart: Date.now(), limit: 10, window: 10000 }, // Increased limit and window for better real-time performance
+  'getMyCurrentPlayingTrack': {
+    calls: 0,
+    windowStart: Date.now(),
+    limit: parseInt(process.env.ENDPOINT_RATE_LIMIT || '20'),
+    window: parseInt(process.env.ENDPOINT_RATE_WINDOW || '5000')
+  },
+  'getMyCurrentPlaybackState': {
+    calls: 0,
+    windowStart: Date.now(),
+    limit: parseInt(process.env.ENDPOINT_RATE_LIMIT || '20'),
+    window: parseInt(process.env.ENDPOINT_RATE_WINDOW || '5000')
+  },
 };
 
 function checkEndpointRateLimit(endpoint: string) {
@@ -305,7 +315,7 @@ function getRetryAfterDelay(error: any) {
         }
       }
     }
-  }, 5000); // Reduced from 30000ms to 5000ms for more frequent updates
+  }, parseInt(process.env.WS_POLLING_INTERVAL || '2000')); // Configurable polling interval (default 2 seconds)
 
   // Set up token refresh interval
   setInterval(() => {

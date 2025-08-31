@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET } from '@/lib/env';
 
@@ -31,13 +31,18 @@ async function authenticateSpotify() {
     const data = await spotifyApiClient.clientCredentialsGrant();
     spotifyApiClient.setAccessToken(data.body['access_token']);
     console.log('Spotify client authenticated successfully');
+    return true;
   } catch (error) {
     console.error('Spotify client authentication failed:', error);
+    return false;
   }
 }
 
 // Initialize authentication
-authenticateSpotify();
+let isAuthenticated = false;
+authenticateSpotify().then(success => {
+  isAuthenticated = success;
+});
 
 // Cache for album data
 const albumCache = new Map();
@@ -119,179 +124,24 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: albumId } = await params;
-  const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-  const now = Date.now();
 
-  // Check rate limit for individual album requests
-  const requestTimes = albumRequestTimes.get(clientIP) || [];
-  const recentRequests = requestTimes.filter((time: number) => now - time < ALBUM_REQUEST_WINDOW);
-
-  if (recentRequests.length >= ALBUM_REQUEST_LIMIT) {
-    console.log(`Rate limit exceeded for ${clientIP} on album ${albumId}`);
-    const cacheKey = `album_tracks_${albumId}`;
-    const cached = albumCache.get(cacheKey);
-    if (cached) {
-      return NextResponse.json(cached.data);
-    } else {
-      const album = albums.find((a: any) => a.id === albumId);
-      return NextResponse.json(album || { error: 'Album not found' });
-    }
-  }
-
-  // Add this request to the tracking
-  recentRequests.push(now);
-  albumRequestTimes.set(clientIP, recentRequests);
-
-  const cacheKey = `album_tracks_${albumId}`;
-  const cached = albumCache.get(cacheKey);
-
-  if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
-    return NextResponse.json(cached.data);
-  }
+  console.log(`Album API called for ID: ${albumId}`);
 
   // Check if we have basic album info locally
   const localAlbum = albums.find((a: any) => a.id === albumId);
-  if (!localAlbum) {
-    return NextResponse.json({ error: 'Album not found' }, { status: 404 });
+
+  if (localAlbum) {
+    console.log(`Found local album: ${localAlbum.name}`);
+    return NextResponse.json(localAlbum);
   }
 
-  // If we have tracks stored locally, use them
-  if (localAlbum.tracks && localAlbum.tracks.length > 0) {
-    console.log(`✅ Using local tracks for album "${localAlbum.name}" (${localAlbum.tracks.length} tracks)`);
-    const albumWithLocalTracks = {
-      id: localAlbum.id,
-      name: localAlbum.name,
-      artist: localAlbum.artist,
-      image: localAlbum.image,
-      tracks: localAlbum.tracks
-    };
-    albumCache.set(cacheKey, { data: albumWithLocalTracks, timestamp: Date.now() });
-    return NextResponse.json(albumWithLocalTracks);
-  }
-
-  // Only fetch from Spotify if we don't have local tracks
-  try {
-    console.log(`Fetching album details and tracks for ${albumId} from Spotify API`);
-
-    // Ensure we have client access token
-    if (!spotifyApiClient.getAccessToken()) {
-      console.log('⚠️  No client access token, attempting to authenticate...');
-      await authenticateSpotify();
-    }
-
-    // Check rate limits for both endpoints
-    const albumLimit = checkEndpointRateLimit('getAlbum');
-    const tracksLimit = checkEndpointRateLimit('getAlbumTracks');
-
-    if (albumLimit !== true || tracksLimit !== true) {
-      console.log(`Rate limited fetching album details for ${albumId}, using cached data`);
-      if (cached) {
-        return NextResponse.json(cached.data);
-      }
-      const album = albums.find((a: any) => a.id === albumId);
-      return NextResponse.json(album || { error: 'Album not found' });
-    }
-
-    // Get album details and tracks in parallel
-    const [albumData, tracksData] = await Promise.all([
-      spotifyApiClient.getAlbum(albumId, { market: 'US' }),
-      spotifyApiClient.getAlbumTracks(albumId, { market: 'US', limit: 50 })
-    ]);
-
-    // Record successful calls
-    recordEndpointCall('getAlbum');
-    recordEndpointCall('getAlbumTracks');
-
-    const tracks = tracksData.body.items.map((track: any) => ({
-      id: track.id,
-      name: track.name,
-      duration_ms: track.duration_ms,
-      artist: track.artists[0]?.name || albumData.body.artists[0].name,
-      track_number: track.track_number,
-      disc_number: track.disc_number
-    }));
-
-    const album = {
-      id: albumData.body.id,
-      name: albumData.body.name,
-      artist: albumData.body.artists[0].name,
-      image: albumData.body.images[0]?.url || localAlbum.image,
-      tracks: tracks
-    };
-
-    // Update the local albums array and save to file to avoid future API calls
-    const albumIndex = albums.findIndex((a: any) => a.id === albumId);
-    if (albumIndex !== -1) {
-      albums[albumIndex] = { ...albums[albumIndex], tracks: tracks };
-      try {
-        fs.writeFileSync(ALBUMS_FILE, JSON.stringify(albums, null, 2));
-        console.log(`📁 Saved tracks for "${album.name}" to albums.json`);
-      } catch (saveError) {
-        console.error('❌ Failed to save updated tracks to albums.json:', saveError);
-      }
-    }
-
-    albumCache.set(cacheKey, { data: album, timestamp: Date.now() });
-    console.log(`Successfully cached album ${albumId} with ${album.tracks.length} tracks`);
-    return NextResponse.json(album);
-  } catch (error: any) {
-    if (error.statusCode === 429) {
-      const shouldRetry = await handleRateLimitError(error, `album details fetch for ${albumId}`);
-      if (shouldRetry) {
-        // Retry the operation
-        try {
-          const [albumData, tracksData] = await Promise.all([
-            spotifyApiClient.getAlbum(albumId, { market: 'US' }),
-            spotifyApiClient.getAlbumTracks(albumId, { market: 'US', limit: 50 })
-          ]);
-
-          const tracks = tracksData.body.items.map((track: any) => ({
-            id: track.id,
-            name: track.name,
-            duration_ms: track.duration_ms,
-            artist: track.artists[0]?.name || albumData.body.artists[0].name,
-            track_number: track.track_number,
-            disc_number: track.disc_number
-          }));
-
-          const album = {
-            id: albumData.body.id,
-            name: albumData.body.name,
-            artist: albumData.body.artists[0].name,
-            image: albumData.body.images[0]?.url || localAlbum.image,
-            tracks: tracks
-          };
-
-          albumCache.set(cacheKey, { data: album, timestamp: Date.now() });
-          console.log(`Successfully cached album ${albumId} with ${album.tracks.length} tracks (after retry)`);
-          return NextResponse.json(album);
-        } catch (retryError) {
-          console.log('Rate limited, using cached or fallback data for album:', albumId);
-          if (cached) {
-            return NextResponse.json(cached.data);
-          }
-        }
-      } else {
-        console.log('Rate limited, using cached or fallback data for album:', albumId);
-        if (cached) {
-          return NextResponse.json(cached.data);
-        }
-      }
-    }
-
-    console.error('Error fetching album:', albumId, error);
-    console.error('Error details:', {
-      statusCode: error.statusCode,
-      message: error.message,
-      body: error.body
-    });
-
-    // Fallback to JSON
-    const album = albums.find((a: any) => a.id === albumId);
-    if (album) {
-      return NextResponse.json(album);
-    } else {
-      return NextResponse.json({ error: 'Album not found' }, { status: 404 });
-    }
-  }
+  // If not found locally, return a basic response
+  console.log(`Album ${albumId} not found locally`);
+  return NextResponse.json({
+    id: albumId,
+    name: 'Unknown Album',
+    artist: 'Unknown Artist',
+    image: '',
+    tracks: []
+  });
 }

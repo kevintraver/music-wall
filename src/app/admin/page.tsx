@@ -121,6 +121,7 @@ export default function AdminPage() {
   // Poll queue periodically as a fallback if WS doesn’t include it
   useEffect(() => {
     if (!isLoggedIn) return;
+    const pollingInterval = parseInt(process.env.NEXT_PUBLIC_QUEUE_POLLING_INTERVAL || '3000');
     const id = window.setInterval(() => {
       const { accessToken, refreshToken } = getTokens();
       fetch('/api/queue', {
@@ -132,7 +133,7 @@ export default function AdminPage() {
         .then(res => res.json())
         .then((payload) => setUpNext(normalizeQueue(payload)))
         .catch(() => {/* ignore */});
-    }, 10000); // Reduced from 30000ms to 10000ms for faster fallback updates
+    }, pollingInterval);
     return () => window.clearInterval(id);
   }, [isLoggedIn]);
 
@@ -345,13 +346,8 @@ export default function AdminPage() {
   const addAlbum = async (album: Album) => {
     setPendingAddId(album.id);
     try {
-      // Get canonical album details from backend (ensures image + name/artist consistency)
-      const canonicalRes = await fetch(`/api/album/${album.id}`);
-      const canonical = canonicalRes.ok ? await canonicalRes.json() : album;
-
-      // Backend currently returns { success: true } from POST; it does not assign position.
-      // Assign a position on the client and send it.
-      const payload = { ...canonical, position: albumsRef.current.length } as Album;
+      // Use the album data from search results directly (simplified approach)
+      const payload = { ...album, position: albumsRef.current.length } as Album;
 
       const res = await fetch('/api/admin/albums', {
         method: 'POST',

@@ -104,12 +104,12 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await spotifyApiClient.searchAlbums(query, { limit: 10, market: 'US' });
-    const results = data.body.albums.items.map((album: any) => ({
+    const results = data.body.albums?.items?.map((album: any) => ({
       id: album.id,
       name: album.name,
       artist: album.artists[0].name,
       image: album.images[0]?.url
-    }));
+    })) || [];
 
     // Record successful call
     recordEndpointCall('searchAlbums');
@@ -122,12 +122,12 @@ export async function GET(request: NextRequest) {
         // Retry the search operation
         try {
           const data = await spotifyApiClient.searchAlbums(query, { limit: 10, market: 'US' });
-          const results = data.body.albums.items.map((album: any) => ({
+          const results = data.body.albums?.items?.map((album: any) => ({
             id: album.id,
             name: album.name,
             artist: album.artists[0].name,
             image: album.images[0]?.url
-          }));
+          })) || [];
           return NextResponse.json(results);
         } catch (retryError) {
           console.log('Rate limited during search retry, returning empty results');

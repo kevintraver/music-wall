@@ -1,0 +1,34 @@
+[
+  {
+    "id": "4yP0hdKOZPNshxUOjY0cZj",
+    "name": "Random Access Memories",
+    "artist": "Daft Punk",
+    "image": "https://i.scdn.co/image/ab67616d0000b2739b9b36b0e22870b9f542d937",
+    "position": 0,
+    "tracks": []
+  },
+  {
+    "id": "1A2GTWGtFfWp7KSQTwWOyo",
+    "name": "Discovery",
+    "artist": "Daft Punk",
+    "image": "https://i.scdn.co/image/ab67616d0000b2738b1b6b0b6b6b6b6b6b6b6b6b",
+    "position": 1,
+    "tracks": []
+  },
+  {
+    "id": "2noRn2Aes5aoNVsU6iWThc",
+    "name": "Homework",
+    "artist": "Daft Punk",
+    "image": "https://i.scdn.co/image/ab67616d0000b2739b9b36b0e22870b9f542d937",
+    "position": 2,
+    "tracks": []
+  },
+  {
+    "id": "4MZSqkfCO4QCYfMZsyBLWP",
+    "name": "Human After All",
+    "artist": "Daft Punk",
+    "image": "https://i.scdn.co/image/ab67616d0000b2739b9b36b0e22870b9f542d937",
+    "position": 3,
+    "tracks": []
+  }
+]

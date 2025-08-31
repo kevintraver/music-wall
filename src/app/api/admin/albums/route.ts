@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET } from '@/lib/env';
 
@@ -74,120 +74,25 @@ export async function POST(request: NextRequest) {
   const newAlbum = await request.json();
 
   if (!albums.find((a: any) => a.id === newAlbum.id)) {
-    try {
-      console.log(`Adding new album: ${newAlbum.name} (${newAlbum.id})`);
+    console.log(`Adding new album: ${newAlbum.name} (${newAlbum.id})`);
 
-      // Ensure we have client access token
-      if (!spotifyApiClient.getAccessToken()) {
-        console.log('⚠️  No client access token for admin add, attempting to authenticate...');
-        await authenticateSpotify();
-      }
+    // Add album with the data provided (simplified approach)
+    const albumToAdd = {
+      ...newAlbum,
+      tracks: [] // Empty tracks array for now
+    };
 
-      // Fetch complete album data including tracks from Spotify
-      const [albumData, tracksData] = await Promise.all([
-        spotifyApiClient.getAlbum(newAlbum.id, { market: 'US' }),
-        spotifyApiClient.getAlbumTracks(newAlbum.id, { market: 'US', limit: 50 })
-      ]);
+    albums.push(albumToAdd);
+    console.log(`✅ Added album "${albumToAdd.name}"`);
 
-      // Validate responses
-      if (!albumData.body || !tracksData.body || !tracksData.body.items) {
-        throw new Error('Invalid response from Spotify API');
-      }
+    // Save to file
+    fs.writeFileSync(ALBUMS_FILE, JSON.stringify(albums, null, 2));
 
-      // Create complete album object with tracks
-      const completeAlbum = {
-        id: albumData.body.id,
-        name: albumData.body.name,
-        artist: albumData.body.artists[0].name,
-        image: albumData.body.images[0]?.url || newAlbum.image,
-        position: newAlbum.position || albums.length,
-        tracks: tracksData.body.items.map((track: any) => ({
-          id: track.id,
-          name: track.name,
-          duration_ms: track.duration_ms,
-          artist: track.artists[0]?.name || albumData.body.artists[0].name,
-          track_number: track.track_number,
-          disc_number: track.disc_number
-        }))
-      };
-
-      albums.push(completeAlbum);
-      console.log(`✅ Added album "${completeAlbum.name}" with ${completeAlbum.tracks.length} tracks`);
-
-      // Save to file
-      fs.writeFileSync(ALBUMS_FILE, JSON.stringify(albums, null, 2));
-
-      return NextResponse.json({
-        success: true,
-        album: completeAlbum,
-        tracksCount: completeAlbum.tracks.length
-      });
-
-    } catch (error: any) {
-      console.error('Error fetching album data for admin add:', error);
-
-      if (error.statusCode === 429) {
-        const shouldRetry = await handleRateLimitError(error, `admin add album ${newAlbum.name}`);
-        if (shouldRetry) {
-          // Retry the operation
-          try {
-            const [albumData, tracksData] = await Promise.all([
-              spotifyApiClient.getAlbum(newAlbum.id, { market: 'US' }),
-              spotifyApiClient.getAlbumTracks(newAlbum.id, { market: 'US', limit: 50 })
-            ]);
-
-            if (!albumData.body || !tracksData.body || !tracksData.body.items) {
-              throw new Error('Invalid response from Spotify API');
-            }
-
-            const completeAlbum = {
-              id: albumData.body.id,
-              name: albumData.body.name,
-              artist: albumData.body.artists[0].name,
-              image: albumData.body.images[0]?.url || newAlbum.image,
-              position: newAlbum.position || albums.length,
-              tracks: tracksData.body.items.map((track: any) => ({
-                id: track.id,
-                name: track.name,
-                duration_ms: track.duration_ms,
-                artist: track.artists[0]?.name || albumData.body.artists[0].name,
-                track_number: track.track_number,
-                disc_number: track.disc_number
-              }))
-            };
-
-            albums.push(completeAlbum);
-            console.log(`✅ Added album "${completeAlbum.name}" with ${completeAlbum.tracks.length} tracks (after retry)`);
-
-            fs.writeFileSync(ALBUMS_FILE, JSON.stringify(albums, null, 2));
-
-            return NextResponse.json({
-              success: true,
-              album: completeAlbum,
-              tracksCount: completeAlbum.tracks.length
-            });
-          } catch (retryError) {
-            console.error('Retry failed for admin add:', retryError);
-          }
-        }
-      }
-
-      // Fallback: add basic album data if Spotify fetch fails
-      console.log('⚠️  Falling back to basic album data');
-      const basicAlbum = {
-        ...newAlbum,
-        tracks: [] // Empty tracks array as fallback
-      };
-      albums.push(basicAlbum);
-      fs.writeFileSync(ALBUMS_FILE, JSON.stringify(albums, null, 2));
-
-      return NextResponse.json({
-        success: true,
-        album: basicAlbum,
-        tracksCount: 0,
-        warning: 'Album added with basic data only (Spotify fetch failed)'
-      });
-    }
+    return NextResponse.json({
+      success: true,
+      album: albumToAdd,
+      tracksCount: 0
+    });
   } else {
     return NextResponse.json({ error: 'Album already exists' }, { status: 400 });
   }

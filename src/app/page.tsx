@@ -172,23 +172,25 @@ export default function Home() {
 
   // Poll queue as fallback if WS doesn’t include it continuously
   useEffect(() => {
+    const pollingInterval = parseInt(process.env.NEXT_PUBLIC_QUEUE_POLLING_INTERVAL || '3000');
     const id = window.setInterval(() => {
       fetch('/api/queue')
         .then(res => res.json())
         .then((payload) => setUpNext(normalizeQueue(payload)))
         .catch(() => {/* ignore */});
-    }, 10000); // Reduced from 30000ms to 10000ms for faster fallback updates
+    }, pollingInterval);
     return () => window.clearInterval(id);
   }, []);
 
   // Poll albums periodically to ensure sync with admin changes
   useEffect(() => {
+    const pollingInterval = parseInt(process.env.NEXT_PUBLIC_ALBUMS_POLLING_INTERVAL || '2000');
     const id = window.setInterval(() => {
       fetch('/api/albums')
         .then(res => res.json())
         .then((albumsData) => setAlbums(albumsData))
         .catch(() => {/* ignore */});
-    }, 5000); // Reduced from 10000ms to 5000ms for faster album sync
+    }, pollingInterval);
     return () => window.clearInterval(id);
   }, []);
 
