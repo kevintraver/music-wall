@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateCodeVerifier, generateCodeChallenge } from '@/lib/oauth';
-import { SPOTIFY_CLIENT_ID, SPOTIFY_REDIRECT_URI, assertSpotifyEnv } from '@/lib/env';
+import { generateCodeVerifier, generateCodeChallenge } from '@/lib/auth/oauth';
+import { SPOTIFY_CLIENT_ID, SPOTIFY_REDIRECT_URI, assertSpotifyEnv } from '@/lib/utils/env';
 
 export async function GET(request: NextRequest) {
   try {

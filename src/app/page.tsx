@@ -2,35 +2,18 @@
 
 
 import { useEffect, useState } from "react";
-import Skeleton from "@/components/Skeleton";
-import { normalizeQueue } from "@/lib/queue";
-import ResponsiveAlbumGrid from "@/components/ResponsiveAlbumGrid";
-import { getAlbums, saveAlbumsToStorage, resetToDefaults } from "@/lib/localStorage";
+import Skeleton from "@/components/shared/Skeleton";
+import ResponsiveAlbumGrid from "@/components/wall/ResponsiveAlbumGrid";
+import ErrorBoundary from "@/components/shared/ErrorBoundary";
+import { useAppState } from "@/lib/utils/state-context";
 
-interface Album {
-  id: string;
-  name: string;
-  artist: string;
-  image: string;
-  position: number;
-}
 
-interface Track {
-  id: string;
-  name: string;
-  artist: string;
-  album: string;
-  image?: string;
-}
 
 export default function Home() {
-  const [albums, setAlbums] = useState<Album[]>([]);
+  const { state, dispatch } = useAppState();
   const [qrs, setQrs] = useState<{ [key: string]: string }>({});
-  const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
-  const [upNext, setUpNext] = useState<import("@/lib/queue").MinimalTrack[]>([]);
-  const [albumsLoading, setAlbumsLoading] = useState(true);
-  const [playbackLoaded, setPlaybackLoaded] = useState(false);
-  const [queueLoaded, setQueueLoaded] = useState(false);
+
+  const { albums, nowPlaying, queue: upNext, isLoading } = state;
 
 
   useEffect(() => {
@@ -40,15 +23,8 @@ export default function Home() {
 
     if (shouldReset) {
       console.log('🔄 Resetting to default albums...');
-      resetToDefaults()
-        .then(setAlbums)
-        .finally(() => setAlbumsLoading(false));
       // Clean up URL
       window.history.replaceState({}, '', window.location.pathname);
-    } else {
-      getAlbums()
-        .then(setAlbums)
-        .finally(() => setAlbumsLoading(false));
     }
   }, []);
 
@@ -62,135 +38,7 @@ export default function Home() {
     });
   }, [albums]);
 
-  useEffect(() => {
-    let ws: WebSocket | null = null;
-    let reconnectAttempts = 0;
-    const maxReconnectAttempts = 10;
-    const baseReconnectDelay = 1000; // 1 second
-    let reconnectTimeout: NodeJS.Timeout | null = null;
-    let heartbeatInterval: NodeJS.Timeout | null = null;
 
-    const connect = () => {
-      if (ws && ws.readyState === WebSocket.OPEN) return;
-
-      ws = new WebSocket(`ws://${window.location.hostname}:3002`);
-
-      ws.onopen = () => {
-        console.log('WebSocket connected');
-        reconnectAttempts = 0;
-        setPlaybackLoaded(true);
-        // Request fresh snapshot on connect
-        try { ws?.send(JSON.stringify({ type: 'refresh' })); } catch {}
-        // Allow UI to render while waiting for first snapshot
-        setQueueLoaded(true);
-
-        // Start heartbeat
-        heartbeatInterval = setInterval(() => {
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'ping' }));
-          }
-        }, 30000); // Send ping every 30 seconds
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'pong') return; // Ignore pong responses
-
-          console.log('📨 WS message received (wall):', {
-            type: data?.type,
-            hasNowPlaying: Object.prototype.hasOwnProperty.call(data || {}, 'nowPlaying'),
-            hasQueue: Object.prototype.hasOwnProperty.call(data || {}, 'queue'),
-            nowPlaying: data?.nowPlaying?.name || null,
-          });
-
-          // Validate message structure
-          if (typeof data !== 'object' || data === null) {
-            console.warn('Invalid WebSocket message format');
-            return;
-          }
-
-          // Handle different message types to avoid cross-contamination
-          const messageType = data.type || 'mixed';
-          
-          // Albums-only updates (e.g., from reordering)
-          if (messageType === 'albums' || (data.albums && Array.isArray(data.albums) && !('nowPlaying' in data) && !('queue' in data))) {
-            console.log('💿 Updating albums from WebSocket:', data.albums.length, 'albums');
-            setAlbums(data.albums);
-            // Save to localStorage to keep in sync
-            saveAlbumsToStorage(data.albums);
-            return; // Don't process other fields for albums-only updates
-          }
-          
-          // Playback-only updates (e.g., from play/pause/skip)
-          if (messageType === 'playback' || ('nowPlaying' in data || 'queue' in data)) {
-            // Only update nowPlaying if the payload explicitly includes the field
-            if ('nowPlaying' in data) {
-              console.log('🎵 (wall) updating now playing:', data.nowPlaying?.name || 'None');
-              setNowPlaying(data.nowPlaying);
-            }
-            // Only update queue if it's explicitly included in the message
-            if ('queue' in data) {
-              const normalized = normalizeQueue(data);
-              console.log('📋 Updating queue:', normalized.length, 'tracks');
-              setUpNext(normalized);
-            }
-            setPlaybackLoaded(true);
-            setQueueLoaded(true);
-            return;
-          }
-          
-          // Mixed updates (fallback for legacy messages that contain everything)
-          if (messageType === 'mixed') {
-            if (data.albums && Array.isArray(data.albums)) {
-              setAlbums(data.albums);
-            }
-            // Only update nowPlaying if it's explicitly provided
-            if ('nowPlaying' in data) {
-              setNowPlaying(data.nowPlaying);
-            }
-            // Only update queue if it's explicitly included in the message
-            if ('queue' in data) {
-              const normalized = normalizeQueue(data);
-              setUpNext(normalized);
-            }
-            setPlaybackLoaded(true);
-            setQueueLoaded(true);
-          }
-        } catch (error) {
-          console.error('Error processing WebSocket message:', error);
-        }
-      };
-
-      ws.onclose = () => {
-        console.log('WebSocket disconnected, attempting reconnection...');
-        if (heartbeatInterval) {
-          clearInterval(heartbeatInterval);
-          heartbeatInterval = null;
-        }
-
-        if (reconnectAttempts < maxReconnectAttempts) {
-          const delay = baseReconnectDelay * Math.pow(2, reconnectAttempts);
-          reconnectTimeout = setTimeout(() => {
-            reconnectAttempts++;
-            connect();
-          }, delay);
-        }
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-      };
-    };
-
-    connect();
-
-    return () => {
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-      if (heartbeatInterval) clearInterval(heartbeatInterval);
-      if (ws) ws.close();
-    };
-  }, []);
 
   // Removed API usage for queue and albums on the wall; rely solely on WebSocket updates
 
@@ -198,19 +46,20 @@ export default function Home() {
 
   return (
     <div className="h-screen bg-black text-white px-8 lg:px-10 pt-10 pb-6 flex flex-col overflow-hidden">
-
-
-      {/* Album Grid (auto-fits without bumping bottom) */}
-      <div className="flex-1 min-h-0 overflow-hidden px-0 mb-8">
-        <ResponsiveAlbumGrid albums={albums} qrs={qrs} albumsLoading={albumsLoading} />
-      </div>
+      <ErrorBoundary>
+        {/* Album Grid (auto-fits without bumping bottom) */}
+        <div className="flex-1 min-h-0 overflow-hidden px-0 mb-8">
+          <ResponsiveAlbumGrid albums={albums} qrs={qrs} albumsLoading={isLoading.albums} />
+        </div>
+      </ErrorBoundary>
 
       {/* Now Playing and Up Next Layout */}
       <div className="shrink-0 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Now Playing - Left Side (2/3 width) */}
         <div className="lg:col-span-2 bg-gray-800 rounded-2xl p-5 flex flex-col">
           <h2 className="text-lg font-bold mb-3 text-gray-300 tracking-wider text-center">Now Playing</h2>
-          {playbackLoaded ? (
+          <ErrorBoundary>
+            {isLoading.playback ? (
             nowPlaying ? (
               <div className="flex flex-col items-center flex-grow text-center min-h-[clamp(12rem,24vh,16rem)]">
                 {nowPlaying.image ? (
@@ -247,13 +96,15 @@ export default function Home() {
               </div>
             </div>
           )}
+          </ErrorBoundary>
         </div>
 
         {/* Up Next - Right Side (1/3 width) */}
         <div className="bg-gray-800 rounded-2xl p-5 flex flex-col">
           <h2 className="text-lg font-bold mb-3 text-gray-300 tracking-wider text-center">Up Next</h2>
-          <div className="flex-grow flex flex-col justify-center">
-            {queueLoaded ? (
+          <ErrorBoundary>
+            <div className="flex-grow flex flex-col justify-center">
+            {isLoading.queue ? (
               upNext.length > 0 ? (
                 <div className="flex items-center space-x-3 p-2 rounded-lg h-20">
                   {upNext[0]?.image ? (
@@ -284,7 +135,8 @@ export default function Home() {
                 </div>
               </div>
             )}
-          </div>
+            </div>
+          </ErrorBoundary>
         </div>
       </div>
     </div>

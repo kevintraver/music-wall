@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import Skeleton from "@/components/Skeleton";
-import AlbumWall from "@/components/AlbumWall";
-import { normalizeQueue } from "@/lib/queue";
-import NowPlayingPanel from "@/components/NowPlayingPanel";
 import { useRouter } from "next/navigation";
-import { getTokens, clearTokens } from "@/lib/tokens";
-import { getAlbums, addAlbum as addAlbumToStorage, removeAlbum as removeAlbumFromStorage, reorderAlbums, saveAlbumsToStorage, resetToDefaults } from "@/lib/localStorage";
+import Skeleton from "@/components/shared/Skeleton";
+import AlbumWall from "@/components/admin/AlbumWall";
+import { normalizeQueue } from "@/lib/spotify/queue";
+import NowPlayingPanel from "@/components/shared/NowPlayingPanel";
+import ErrorBoundary from "@/components/shared/ErrorBoundary";
+import { getTokens, clearTokens } from "@/lib/auth/tokens";
+import { getAlbums, addAlbum as addAlbumToStorage, removeAlbum as removeAlbumFromStorage, reorderAlbums, saveAlbumsToStorage, resetToDefaults } from "@/lib/utils/localStorage";
 
 interface Album {
   id: string;
@@ -32,7 +33,7 @@ export default function AdminPage() {
   const router = useRouter();
   const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [upNext, setUpNext] = useState<import("@/lib/queue").MinimalTrack[]>([]);
+  const [upNext, setUpNext] = useState<import("@/lib/spotify/queue").MinimalTrack[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Album[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -50,6 +51,14 @@ export default function AdminPage() {
   const [playbackActionLoading, setPlaybackActionLoading] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [showWsTooltip, setShowWsTooltip] = useState(false);
+  const [adminStats, setAdminStats] = useState<{
+    totalClients: number;
+    adminClients: number;
+    wallClients: number;
+    lastActivity: string;
+    uptime: number;
+    serverStartTime: string;
+  } | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -177,10 +186,17 @@ export default function AdminPage() {
             nowPlaying: data?.nowPlaying?.name || null,
           });
           
-          // Handle different message types to avoid cross-contamination
-          const messageType = data.type || 'mixed';
-          
-          // Albums-only updates (e.g., from reordering)
+           // Handle different message types to avoid cross-contamination
+           const messageType = data.type || 'mixed';
+
+           // Admin stats updates
+           if (messageType === 'admin_stats' && data.payload) {
+             console.log('📊 Admin stats update:', data.payload);
+             setAdminStats(data.payload);
+             return;
+           }
+
+           // Albums-only updates (e.g., from reordering)
           if (messageType === 'albums' || (data.albums && Array.isArray(data.albums) && !('nowPlaying' in data) && !('queue' in data))) {
             console.log('💿 Albums-only update:', data.albums.length, 'albums');
             const albumsChanged = JSON.stringify(data.albums) !== JSON.stringify(albums);
@@ -259,6 +275,14 @@ export default function AdminPage() {
             // Clear loading states when WebSocket confirms updates
             setPlaybackActionLoading(null);
             setPlaybackUpdatePending(false);
+            return;
+          }
+
+          // Admin stats updates
+          if (messageType === 'admin_stats') {
+            console.log('📊 Admin stats update:', data.payload);
+            setAdminStats(data.payload);
+            return;
           }
         } catch (error) {
           console.error('Error processing WebSocket message:', error);
@@ -349,26 +373,59 @@ export default function AdminPage() {
 
   const addAlbum = async (album: Album) => {
     setPendingAddId(album.id);
+
+    // Optimistic update: Add album to UI immediately
+    const optimisticAlbums = addAlbumToStorage(album);
+    setAlbums(optimisticAlbums);
+    albumsRef.current = optimisticAlbums;
+
+    // Remove added album from search results but keep query
+    setSearchResults(prev => prev.filter(a => a.id !== album.id));
+
     try {
-      // Add album to localStorage
-      const updatedAlbums = addAlbumToStorage(album);
+      // Make API call to persist the change
+      const { accessToken, refreshToken } = getTokens();
+      const response = await fetch('/api/admin/albums', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-spotify-access-token': accessToken,
+          'x-spotify-refresh-token': refreshToken,
+        },
+        body: JSON.stringify({
+          id: album.id,
+          name: album.name,
+          artist: album.artist,
+          image: album.image
+        })
+      });
 
-      // Update UI state
-      setAlbums(updatedAlbums);
-      albumsRef.current = updatedAlbums;
-
-      // Broadcast update to all clients via WebSocket
-      if (global.sendWebSocketUpdate) {
-        global.sendWebSocketUpdate({
-          type: 'albums',
-          albums: updatedAlbums
-        });
+      if (!response.ok) {
+        throw new Error(`Failed to add album: ${response.statusText}`);
       }
 
-      // Remove added album from search results but keep query
-      setSearchResults(prev => prev.filter(a => a.id !== album.id));
+      const result = await response.json();
+      console.log('✅ Album added successfully:', result);
+
+      // The WebSocket will handle the real update, so we don't need to do anything else
+
     } catch (error) {
-      console.error('Error adding album:', error);
+      console.error('❌ Error adding album:', error);
+
+      // Rollback: Remove the optimistically added album
+      try {
+        const rollbackAlbums = removeAlbumFromStorage(album.id);
+        setAlbums(rollbackAlbums);
+        albumsRef.current = rollbackAlbums;
+
+        // Add album back to search results
+        setSearchResults(prev => [...prev, album]);
+
+        // Show error to user
+        alert(`Failed to add album "${album.name}". Please try again.`);
+      } catch (rollbackError) {
+        console.error('Error during rollback:', rollbackError);
+      }
     } finally {
       // Clear pending state
       setPendingAddId(null);
@@ -376,23 +433,52 @@ export default function AdminPage() {
   };
 
   const removeAlbum = async (id: string) => {
+    // Store the album for potential rollback
+    const albumToRemove = albums.find(album => album.id === id);
+    if (!albumToRemove) {
+      console.error('Album not found for removal:', id);
+      return;
+    }
+
+    // Optimistic update: Remove album from UI immediately
+    const optimisticAlbums = removeAlbumFromStorage(id);
+    setAlbums(optimisticAlbums);
+    albumsRef.current = optimisticAlbums;
+
     try {
-      // Remove album from localStorage
-      const updatedAlbums = removeAlbumFromStorage(id);
+      // Make API call to persist the change
+      const { accessToken, refreshToken } = getTokens();
+      const response = await fetch(`/api/admin/albums/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'x-spotify-access-token': accessToken,
+          'x-spotify-refresh-token': refreshToken,
+        }
+      });
 
-      // Update UI state
-      setAlbums(updatedAlbums);
-      albumsRef.current = updatedAlbums;
-
-      // Broadcast update to all clients via WebSocket
-      if (global.sendWebSocketUpdate) {
-        global.sendWebSocketUpdate({
-          type: 'albums',
-          albums: updatedAlbums
-        });
+      if (!response.ok) {
+        throw new Error(`Failed to remove album: ${response.statusText}`);
       }
+
+      const result = await response.json();
+      console.log('✅ Album removed successfully:', result);
+
+      // The WebSocket will handle the real update, so we don't need to do anything else
+
     } catch (error) {
-      console.error('Error removing album:', error);
+      console.error('❌ Error removing album:', error);
+
+      // Rollback: Add the album back
+      try {
+        const rollbackAlbums = addAlbumToStorage(albumToRemove);
+        setAlbums(rollbackAlbums);
+        albumsRef.current = rollbackAlbums;
+
+        // Show error to user
+        alert(`Failed to remove album "${albumToRemove.name}". Please try again.`);
+      } catch (rollbackError) {
+        console.error('Error during rollback:', rollbackError);
+      }
     }
   };
 
@@ -448,19 +534,50 @@ export default function AdminPage() {
 
   // Handle album reorder coming from AlbumWall
   const handleReorder = async (updatedAlbums: Album[]) => {
-    // Save reordered albums to localStorage
-    reorderAlbums(updatedAlbums);
+    // Store original order for potential rollback
+    const originalAlbums = [...albums];
 
-    // Update UI state
+    // Optimistic update: Update UI immediately
+    reorderAlbums(updatedAlbums);
     setAlbums(updatedAlbums);
     albumsRef.current = updatedAlbums;
 
-    // Broadcast update to all clients via WebSocket
-    if (global.sendWebSocketUpdate) {
-      global.sendWebSocketUpdate({
-        type: 'albums',
-        albums: updatedAlbums
+    try {
+      // Make API call to persist the change
+      const { accessToken, refreshToken } = getTokens();
+      const response = await fetch('/api/admin/albums/reorder', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-spotify-access-token': accessToken,
+          'x-spotify-refresh-token': refreshToken,
+        },
+        body: JSON.stringify(updatedAlbums)
       });
+
+      if (!response.ok) {
+        throw new Error(`Failed to reorder albums: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Albums reordered successfully:', result);
+
+      // The WebSocket will handle the real update, so we don't need to do anything else
+
+    } catch (error) {
+      console.error('❌ Error reordering albums:', error);
+
+      // Rollback: Restore original order
+      try {
+        reorderAlbums(originalAlbums);
+        setAlbums(originalAlbums);
+        albumsRef.current = originalAlbums;
+
+        // Show error to user
+        alert('Failed to reorder albums. The original order has been restored.');
+      } catch (rollbackError) {
+        console.error('Error during rollback:', rollbackError);
+      }
     }
   };
 
@@ -515,19 +632,44 @@ export default function AdminPage() {
                       {wsConnected ? 'Connected' : 'Disconnected'}
                     </span>
                   </div>
-                 <button
-                  onClick={handleLogout}
-                  className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
-                  title="Logout"
-                >
-                  Logout
-                </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const { accessToken, refreshToken } = getTokens();
+                        const response = await fetch('/api/admin/status', {
+                          headers: {
+                            'x-spotify-access-token': accessToken,
+                            'x-spotify-refresh-token': refreshToken
+                          }
+                        });
+                        const status = await response.json();
+                        console.log('Spotify Status:', status);
+                        alert(`Spotify Status:\n${JSON.stringify(status, null, 2)}`);
+                      } catch (error) {
+                        console.error('Status check failed:', error);
+                        alert('Failed to check Spotify status');
+                      }
+                    }}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm mr-2"
+                    title="Check Spotify Status"
+                  >
+                    Status
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
+                    title="Logout"
+                  >
+                    Logout
+                  </button>
               </div>
             </div>
           </div>
         </header>
         <main className="flex-grow">
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Now Playing panel */}
               <NowPlayingPanel
@@ -698,18 +840,79 @@ export default function AdminPage() {
        </main>
       </div>
       {showWsTooltip && (
-        <div className="fixed bg-white border border-gray-200 rounded-lg shadow-xl p-4 z-50 min-w-64 pointer-events-none" style={{ top: '80px', right: '180px' }}>
-          <div className="text-sm font-medium text-gray-900 mb-2">WebSocket Connection</div>
-          <div className="space-y-2 text-xs text-gray-600">
-            <div className="flex justify-between">
-              <span>Server:</span>
-              <span className="font-mono text-gray-800">ws://{window.location.hostname}:3002</span>
+        <div className="fixed bg-white border border-gray-200 rounded-lg shadow-xl p-4 z-50 min-w-80 pointer-events-none" style={{ top: '80px', right: '180px' }}>
+          <div className="text-sm font-medium text-gray-900 mb-3">System Status</div>
+          <div className="space-y-3 text-xs text-gray-600">
+            <div>
+              <div className="font-medium text-gray-800 mb-1">WebSocket Connection</div>
+              <div className="space-y-1 ml-2">
+                <div className="flex justify-between">
+                  <span>Server:</span>
+                  <span className="font-mono text-gray-800">ws://{window.location.hostname}:3002</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Status:</span>
+                  <span className={`font-medium ${wsConnected ? 'text-green-600' : 'text-red-600'}`}>
+                    {wsConnected ? 'Connected' : 'Disconnected'}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span>Status:</span>
-              <span className={`font-medium ${wsConnected ? 'text-green-600' : 'text-red-600'}`}>
-                {wsConnected ? 'Connected' : 'Disconnected'}
-              </span>
+
+            {adminStats && (
+              <div>
+                <div className="font-medium text-gray-800 mb-1">Real-time Stats</div>
+                <div className="space-y-1 ml-2">
+                  <div className="flex justify-between">
+                    <span>Total Clients:</span>
+                    <span className="font-medium text-gray-800">{adminStats.totalClients}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Admin Clients:</span>
+                    <span className="font-medium text-blue-600">{adminStats.adminClients}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Wall Clients:</span>
+                    <span className="font-medium text-green-600">{adminStats.wallClients}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Server Uptime:</span>
+                    <span className="font-mono text-gray-800">
+                      {Math.floor((Date.now() - adminStats.uptime) / 1000 / 60)}m
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Last Activity:</span>
+                    <span className="font-mono text-gray-800">
+                      {new Date(adminStats.lastActivity).toLocaleTimeString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <div className="font-medium text-gray-800 mb-1">Spotify Integration</div>
+              <div className="space-y-1 ml-2">
+                <div className="flex justify-between">
+                  <span>API Status:</span>
+                  <span className={`font-medium ${nowPlaying ? 'text-green-600' : 'text-yellow-600'}`}>
+                    {nowPlaying ? 'Active' : 'No Track'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Current Track:</span>
+                  <span className="font-mono text-gray-800 text-xs max-w-32 truncate">
+                    {nowPlaying?.name || 'None'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Playback:</span>
+                  <span className={`font-medium ${isPlaying ? 'text-green-600' : 'text-gray-600'}`}>
+                    {isPlaying ? 'Playing' : 'Paused'}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
           <div className="absolute -top-1 right-8 w-2 h-2 bg-white border-l border-t border-gray-200 rotate-45"></div>

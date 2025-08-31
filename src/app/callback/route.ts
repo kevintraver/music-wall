@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SPOTIFY_CLIENT_ID, SPOTIFY_REDIRECT_URI, APP_BASE_URL, assertSpotifyEnv } from '@/lib/env';
+import { SPOTIFY_CLIENT_ID, SPOTIFY_REDIRECT_URI, APP_BASE_URL, assertSpotifyEnv } from '@/lib/utils/env';
 import * as fs from 'fs';
 import * as path from 'path';
 

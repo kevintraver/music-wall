@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { setTokens } from '@/lib/tokens';
+import { setTokens } from '@/lib/auth/tokens';
 
 export default function CallbackSuccessPage() {
   const router = useRouter();

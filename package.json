@@ -7,7 +7,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "ws": "tsx src/lib/start-websocket.ts",
+    "ws": "tsx src/websocket/start-websocket.ts",
     "update-album-art": "node scripts/update-album-art.js"
   },
   "dependencies": {
@@ -23,6 +23,7 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/spotify-web-api-node": "^5.0.11",

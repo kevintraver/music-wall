@@ -8,16 +8,27 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch('/api/admin/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    const data = await res.json();
-    if (data.redirect) {
-      window.location.href = data.redirect;
-    } else {
-      alert('Invalid credentials');
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+
+      if (!res.ok) {
+        alert('Invalid credentials');
+        return;
+      }
+
+      const data = await res.json();
+      if (data.redirect) {
+        window.location.href = data.redirect;
+      } else {
+        alert('Invalid credentials');
+      }
+    } catch (err) {
+      console.error('Login failed:', err);
+      alert('Login failed. Please try again.');
     }
   };
 

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import Skeleton from "@/components/Skeleton";
-import { normalizeQueue } from "@/lib/queue";
+import Skeleton from "@/components/shared/Skeleton";
+import { normalizeQueue } from "@/lib/spotify/queue";
 
 interface Track {
   id: string;
@@ -22,6 +22,14 @@ interface Album {
   tracks: Track[];
 }
 
+// Utility function to format duration
+const formatDuration = (ms: number): string => {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
+
 export default function AlbumPage() {
   const params = useParams();
   const albumId = params.id as string;
@@ -29,14 +37,14 @@ export default function AlbumPage() {
   const [apiBase, setApiBase] = useState('');
   const [message, setMessage] = useState('');
   const [queuedTrack, setQueuedTrack] = useState<string>('');
-  const [upNext, setUpNext] = useState<import("@/lib/queue").MinimalTrack[]>([]);
+  const [upNext, setUpNext] = useState<import("@/lib/spotify/queue").MinimalTrack[]>([]);
   const [pendingTrackId, setPendingTrackId] = useState<string | null>(null);
   const [albumLoading, setAlbumLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
 
   useEffect(() => {
-    const base = `http://${window.location.hostname}:3001`;
+    const base = `http://${window.location.hostname}:3000`;
     setApiBase(base);
     const fetchOnce = async (id: string) => {
       const res = await fetch(`${base}/api/album/${id}`);
@@ -173,15 +181,42 @@ export default function AlbumPage() {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.type === 'pong') return; // Ignore pong responses
 
-          // Validate message structure
-          if (typeof data !== 'object' || data === null) {
-            console.warn('Invalid WebSocket message format');
-            return;
+          // Handle different message types
+          switch (data.type) {
+            case 'pong':
+              // Heartbeat response - ignore
+              return;
+
+            case 'queue':
+              // Queue update
+              if (Array.isArray(data.payload)) {
+                console.log('📋 Queue updated:', data.payload.length, 'tracks');
+                setUpNext(normalizeQueue({ queue: data.payload }));
+              }
+              break;
+
+            case 'playback':
+              // Playback state update - could be useful for showing current track
+              if (data.payload && data.payload.nowPlaying) {
+                console.log('🎵 Now playing:', data.payload.nowPlaying.name);
+                // Could add now playing display here if needed
+              }
+              break;
+
+            case 'albums':
+              // Album updates - might affect the current album
+              console.log('💿 Albums updated');
+              // Could refresh album data if needed
+              break;
+
+            default:
+              // Handle legacy messages or mixed updates
+              if (data.queue || data.nowPlaying) {
+                setUpNext(normalizeQueue(data));
+              }
+              break;
           }
-
-          setUpNext(normalizeQueue(data));
         } catch (error) {
           console.error('Error processing WebSocket message:', error);
         }
@@ -226,20 +261,28 @@ export default function AlbumPage() {
       .catch(() => {/* ignore */});
   }, [apiBase]);
 
-  const queueTrack = async (trackId: string) => {
+  const queueTrack = async (trackId: string, retryCount = 0) => {
     if (pendingTrackId === trackId) return;
     const track = album?.tracks.find(t => t.id === trackId);
-    if (!track) return;
+    if (!track) {
+      setMessage('Track not found.');
+      setTimeout(() => setMessage(''), 3000);
+      return;
+    }
+
     setPendingTrackId(trackId);
+
     try {
       const response = await fetch(`${apiBase}/api/queue`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ trackId })
       });
+
       if (response.ok) {
         setQueuedTrack(track.name);
-        setMessage('Track queued successfully!');
+        setMessage('✅ Track queued successfully!');
+
         // Optimistically reflect queued state until WS updates
         setUpNext(prev => (
           prev.some(t => t.id === trackId)
@@ -249,19 +292,48 @@ export default function AlbumPage() {
                 {
                   id: trackId,
                   name: track.name,
-                  artist: track.artist,
-                  image: track.image,
+                  artist: track.artist || album?.artist || 'Unknown Artist',
+                  image: track.image || album?.image,
                 },
               ]
         ));
+
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setMessage('');
+          setQueuedTrack('');
+        }, 3000);
+
+      } else if (response.status === 429 && retryCount < 2) {
+        // Rate limited - retry after a delay
+        const retryDelay = Math.pow(2, retryCount) * 1000; // Exponential backoff
+        setMessage(`Rate limited, retrying in ${retryDelay / 1000}s...`);
+        setTimeout(() => queueTrack(trackId, retryCount + 1), retryDelay);
+
+      } else if (response.status === 401) {
+        setMessage('❌ Authentication required. Please refresh the page.');
       } else {
-        setMessage('Failed to queue track.');
+        const errorData = await response.json().catch(() => ({}));
+        setMessage(`❌ Failed to queue track: ${errorData.error || 'Unknown error'}`);
+        setTimeout(() => setMessage(''), 5000);
       }
+
     } catch (error) {
-      setMessage('Failed to queue track.');
+      console.error('Queue track error:', error);
+
+      if (retryCount < 2) {
+        // Network error - retry
+        const retryDelay = Math.pow(2, retryCount) * 1000;
+        setMessage(`Connection error, retrying in ${retryDelay / 1000}s...`);
+        setTimeout(() => queueTrack(trackId, retryCount + 1), retryDelay);
+      } else {
+        setMessage('❌ Failed to queue track. Please check your connection and try again.');
+        setTimeout(() => setMessage(''), 5000);
+      }
     } finally {
-      setPendingTrackId(null);
-      setTimeout(() => setMessage(''), 3000);
+      if (retryCount >= 2) {
+        setPendingTrackId(null);
+      }
     }
   };
 
@@ -312,53 +384,150 @@ export default function AlbumPage() {
     );
   }
 
+  if (!album) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white p-4">
+        <div className="max-w-md mx-auto text-center">
+          <h1 className="text-2xl font-bold mb-4">Album Not Found</h1>
+          <p className="text-gray-400">The requested album could not be found.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4">
+      <div className="max-w-lg mx-auto">
+        {/* Album Header */}
+        <div className="text-center mb-8">
+          <img
+            src={album.image}
+            alt={album.name}
+            width={250}
+            height={250}
+            className="rounded-xl mx-auto shadow-2xl"
+          />
+          <h1 className="text-3xl font-bold mt-6 mb-2">{album.name}</h1>
+          <p className="text-xl text-gray-300 mb-4">{album.artist}</p>
 
+          {/* Status Messages */}
+          {message && (
+            <div className="bg-green-600 text-white px-4 py-2 rounded-lg mb-4 inline-block">
+              {message}
+            </div>
+          )}
 
-      <div className="max-w-md mx-auto">
-         <img
-           src={album.image}
-           alt={album.name}
-           width={300}
-           height={300}
-           className="rounded-lg mx-auto"
-         />
-        <h1 className="text-2xl font-bold text-center mt-4">{album.name}</h1>
-        <p className="text-center text-gray-400">{album.artist}</p>
-        {message && <p className="text-center text-green-400 mt-4">{message}</p>}
-        {queuedTrack && (
-          <div className="text-center mt-4">
-            <h3 className="text-lg font-semibold">Queued</h3>
-            <p>{queuedTrack}</p>
+          {queuedTrack && (
+            <div className="bg-blue-600 text-white px-4 py-3 rounded-lg mb-4">
+              <div className="text-sm opacity-90">Recently Queued</div>
+              <div className="font-semibold">{queuedTrack}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Track List */}
+        <div className="bg-gray-800 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold">Tracks</h2>
+            <span className="text-sm text-gray-400">{album.tracks?.length || 0} songs</span>
           </div>
-        )}
-        {/* Now Playing removed for QR queue page */}
-        <div className="mt-8">
-          <h2 className="text-xl font-semibold mb-4">Tracks</h2>
-          <ul className="space-y-2">
-            {(album.tracks ?? []).map(track => {
+
+          <div className="space-y-3">
+            {(album.tracks ?? []).map((track, index) => {
               const isQueued = upNext.some(t => t.id === track.id);
               const isPending = pendingTrackId === track.id;
+              const duration = track.duration_ms ? formatDuration(track.duration_ms) : '';
+
               return (
-                <li key={track.id} className="flex justify-between items-center bg-gray-800 p-3 rounded">
-                  <span>{track.name}</span>
-                  {isQueued ? (
-                    <span className="text-green-400 font-semibold">Queued</span>
-                  ) : (
-                    <button
-                      onClick={() => queueTrack(track.id)}
-                      disabled={isPending}
-                      className={`${isPending ? 'bg-gray-600 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} px-4 py-2 rounded`}
-                    >
-                      {isPending ? 'Queuing…' : 'Queue'}
-                    </button>
-                  )}
-                </li>
+                <div
+                  key={track.id}
+                  className={`flex items-center justify-between p-4 rounded-lg transition-all ${
+                    isQueued
+                      ? 'bg-green-900/30 border border-green-500/30'
+                      : 'bg-gray-700/50 hover:bg-gray-700'
+                  }`}
+                >
+                  <div className="flex items-center space-x-4 flex-1 min-w-0">
+                    <div className="text-gray-400 text-sm w-6 text-right">
+                      {index + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{track.name}</div>
+                      {track.artist && track.artist !== album.artist && (
+                        <div className="text-sm text-gray-400 truncate">{track.artist}</div>
+                      )}
+                    </div>
+                    {duration && (
+                      <div className="text-sm text-gray-400 ml-2">
+                        {duration}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="ml-4">
+                    {isQueued ? (
+                      <div className="flex items-center space-x-2 text-green-400">
+                        <span className="text-sm font-medium">Queued</span>
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => queueTrack(track.id)}
+                        disabled={isPending}
+                        className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                          isPending
+                            ? 'bg-gray-600 cursor-not-allowed text-gray-400'
+                            : 'bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl'
+                        }`}
+                      >
+                        {isPending ? (
+                          <div className="flex items-center space-x-2">
+                            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                            <span>Adding...</span>
+                          </div>
+                        ) : (
+                          'Add to Queue'
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
               );
             })}
-          </ul>
+          </div>
+
+          {(!album.tracks || album.tracks.length === 0) && (
+            <div className="text-center py-8 text-gray-400">
+              <div className="text-4xl mb-4">🎵</div>
+              <div>No tracks available for this album</div>
+            </div>
+          )}
         </div>
+
+        {/* Queue Preview */}
+        {upNext.length > 0 && (
+          <div className="mt-6 bg-gray-800 rounded-xl p-4">
+            <h3 className="text-lg font-semibold mb-3">Up Next</h3>
+            <div className="space-y-2">
+              {upNext.slice(0, 3).map((track, index) => (
+                <div key={track.id} className="flex items-center space-x-3 text-sm">
+                  <div className="w-6 h-6 bg-gray-700 rounded-full flex items-center justify-center text-xs">
+                    {index + 1}
+                  </div>
+                  <div className="flex-1 truncate">
+                    <div className="font-medium">{track.name}</div>
+                    <div className="text-gray-400">{track.artist}</div>
+                  </div>
+                </div>
+              ))}
+              {upNext.length > 3 && (
+                <div className="text-sm text-gray-400 text-center pt-2">
+                  +{upNext.length - 3} more songs
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
