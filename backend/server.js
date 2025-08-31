@@ -180,6 +180,18 @@ async function updateAlbumsWithTracks() {
   let updatedCount = 0;
   console.log('Checking for albums without tracks...');
 
+  // Ensure we have client credentials before trying to fetch tracks
+  if (!spotifyApiClient.getAccessToken()) {
+    console.log('⚠️  No client access token available, attempting to authenticate...');
+    await authenticateSpotify();
+    
+    // If still no token, can't proceed
+    if (!spotifyApiClient.getAccessToken()) {
+      console.error('❌ Failed to authenticate with Spotify, cannot fetch track data');
+      return;
+    }
+  }
+
   for (let i = 0; i < albums.length; i++) {
     const album = albums[i];
     if (!album.tracks || album.tracks.length === 0) {
@@ -187,31 +199,51 @@ async function updateAlbumsWithTracks() {
         console.log(`Updating album "${album.name}" with tracks...`);
         const tracksData = await spotifyApiClient.getAlbumTracks(album.id, { market: 'US', limit: 50 });
 
+        // Validate the response
+        if (!tracksData.body || !tracksData.body.items) {
+          console.error(`Invalid response for album "${album.name}":`, tracksData.body);
+          continue;
+        }
+
+        const tracks = tracksData.body.items.map(track => ({
+          id: track.id,
+          name: track.name,
+          duration_ms: track.duration_ms,
+          artist: track.artists[0]?.name || album.artist,
+          track_number: track.track_number,
+          disc_number: track.disc_number
+        }));
+
         albums[i] = {
           ...album,
-          tracks: tracksData.body.items.map(track => ({
-            id: track.id,
-            name: track.name,
-            duration_ms: track.duration_ms,
-            artist: track.artists[0]?.name || album.artist,
-            track_number: track.track_number,
-            disc_number: track.disc_number
-          }))
+          tracks: tracks
         };
         updatedCount++;
-        console.log(`✅ Updated "${album.name}" with ${albums[i].tracks.length} tracks`);
+        console.log(`✅ Updated "${album.name}" with ${tracks.length} tracks`);
 
         // Small delay to avoid rate limits
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 200));
       } catch (error) {
         console.error(`Failed to update tracks for "${album.name}":`, error.message);
+        if (error.statusCode === 429) {
+          console.log('⚠️  Rate limited, adding longer delay...');
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+        if (error.statusCode === 401) {
+          console.log('⚠️  Token expired, re-authenticating...');
+          await authenticateSpotify();
+        }
       }
     }
   }
 
   if (updatedCount > 0) {
-    fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
-    console.log(`📁 Saved ${updatedCount} updated albums to JSON file`);
+    try {
+      fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+      console.log(`📁 Saved ${updatedCount} updated albums to JSON file`);
+    } catch (error) {
+      console.error('❌ Failed to save albums.json:', error);
+    }
   } else {
     console.log('✅ All albums already have tracks');
   }
@@ -530,26 +562,47 @@ app.get('/api/album/:id', async (req, res) => {
   // Only fetch from Spotify if we don't have local tracks
   try {
     console.log(`Fetching album details and tracks for ${albumId} from Spotify API`);
+    
+    // Ensure we have client access token
+    if (!spotifyApiClient.getAccessToken()) {
+      console.log('⚠️  No client access token, attempting to authenticate...');
+      await authenticateSpotify();
+    }
+
     // Get album details and tracks in parallel
     const [albumData, tracksData] = await Promise.all([
       spotifyApiClient.getAlbum(albumId, { market: 'US' }),
       spotifyApiClient.getAlbumTracks(albumId, { market: 'US', limit: 50 })
     ]);
 
+    const tracks = tracksData.body.items.map(track => ({
+      id: track.id,
+      name: track.name,
+      duration_ms: track.duration_ms,
+      artist: track.artists[0]?.name || albumData.body.artists[0].name,
+      track_number: track.track_number,
+      disc_number: track.disc_number
+    }));
+
     const album = {
       id: albumData.body.id,
       name: albumData.body.name,
       artist: albumData.body.artists[0].name,
       image: albumData.body.images[0]?.url || localAlbum.image, // Use local image as fallback
-      tracks: tracksData.body.items.map(track => ({
-        id: track.id,
-        name: track.name,
-        duration_ms: track.duration_ms,
-        artist: track.artists[0]?.name,
-        track_number: track.track_number,
-        disc_number: track.disc_number
-      }))
+      tracks: tracks
     };
+
+    // Update the local albums array and save to file to avoid future API calls
+    const albumIndex = albums.findIndex(a => a.id === albumId);
+    if (albumIndex !== -1) {
+      albums[albumIndex] = { ...albums[albumIndex], tracks: tracks };
+      try {
+        fs.writeFileSync(path.join(__dirname, '../albums.json'), JSON.stringify(albums, null, 2));
+        console.log(`📁 Saved tracks for "${album.name}" to albums.json`);
+      } catch (saveError) {
+        console.error('❌ Failed to save updated tracks to albums.json:', saveError);
+      }
+    }
 
     albumCache.set(cacheKey, { data: album, timestamp: Date.now() });
     console.log(`Successfully cached album ${albumId} with ${album.tracks.length} tracks`);
@@ -937,11 +990,22 @@ app.post('/api/admin/albums', async (req, res) => {
     try {
       console.log(`Adding new album: ${newAlbum.name} (${newAlbum.id})`);
 
+      // Ensure we have client access token
+      if (!spotifyApiClient.getAccessToken()) {
+        console.log('⚠️  No client access token for admin add, attempting to authenticate...');
+        await authenticateSpotify();
+      }
+
       // Fetch complete album data including tracks from Spotify
       const [albumData, tracksData] = await Promise.all([
         spotifyApiClient.getAlbum(newAlbum.id, { market: 'US' }),
         spotifyApiClient.getAlbumTracks(newAlbum.id, { market: 'US', limit: 50 })
       ]);
+
+      // Validate responses
+      if (!albumData.body || !tracksData.body || !tracksData.body.items) {
+        throw new Error('Invalid response from Spotify API');
+      }
 
       // Create complete album object with tracks
       const completeAlbum = {
