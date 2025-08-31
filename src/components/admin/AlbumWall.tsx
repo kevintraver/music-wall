@@ -133,6 +133,7 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
       <AlbumGrid
         albums={[...uniqueAlbums].sort((a, b) => a.position - b.position)}
         albumsLoading={albumsLoading}
+        centerText={true}
       >
         {(album, index) => {
           const isDraggedItem = draggedAlbum?.id === album.id;

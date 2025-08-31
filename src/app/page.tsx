@@ -75,25 +75,25 @@ export default function Home() {
           <h2 className="text-lg font-bold mb-3 text-gray-300 tracking-wider text-center">Now Playing</h2>
           <ErrorBoundary>
             {isLoading.playback ? (
-              // Loading playback: show skeleton
-              <div className="flex flex-col items-center flex-grow text-center justify-center min-h-[clamp(12rem,24vh,16rem)]">
-                <Skeleton className="w-[clamp(6rem,16vh,12rem)] h-[clamp(6rem,16vh,12rem)] rounded-lg" />
+               // Loading playback: show skeleton
+               <div className="flex flex-col items-center flex-grow text-center justify-center min-h-[clamp(6rem,12vh,8rem)]">
+                 <Skeleton className="w-[clamp(4rem,10vh,8rem)] h-[clamp(4rem,10vh,8rem)] rounded-lg" />
                 <div className="mt-6 w-[min(16rem,60vw)]">
                   <Skeleton className="h-7 w-3/4 mx-auto mb-2" />
                   <Skeleton className="h-4 w-1/2 mx-auto" />
                 </div>
               </div>
             ) : nowPlaying ? (
-              // Ready and we have a track
-              <div className="flex flex-col items-center flex-grow text-center min-h-[clamp(12rem,24vh,16rem)]">
+               // Ready and we have a track
+               <div className="flex flex-col items-center flex-grow text-center min-h-[clamp(6rem,12vh,8rem)]">
                 {nowPlaying.image ? (
-                  <img
-                    src={nowPlaying.image}
-                    alt={nowPlaying.name}
-                    className="w-[clamp(6rem,16vh,12rem)] h-[clamp(6rem,16vh,12rem)] rounded-lg shadow-lg object-cover"
-                  />
+                   <img
+                     src={nowPlaying.image}
+                     alt={nowPlaying.name}
+                     className="w-[clamp(4rem,10vh,8rem)] h-[clamp(4rem,10vh,8rem)] rounded-lg shadow-lg object-cover"
+                   />
                 ) : (
-                  <div className="w-[clamp(6rem,16vh,12rem)] h-[clamp(6rem,16vh,12rem)] rounded-lg bg-gray-700" />
+                   <div className="w-[clamp(4rem,10vh,8rem)] h-[clamp(4rem,10vh,8rem)] rounded-lg bg-gray-700" />
                 )}
                 <div className="mt-6">
                   <h3 className="text-2xl font-bold truncate max-w-[90vw] lg:max-w-[60vw]">
@@ -103,9 +103,9 @@ export default function Home() {
                 </div>
               </div>
             ) : (
-              // Ready but nothing is playing
-              <div className="flex flex-col items-center flex-grow text-center justify-center min-h-[clamp(12rem,24vh,16rem)]">
-                <div className="w-[clamp(6rem,16vh,12rem)] h-[clamp(6rem,16vh,12rem)] rounded-lg bg-gray-700" />
+               // Ready but nothing is playing
+               <div className="flex flex-col items-center flex-grow text-center justify-center min-h-[clamp(6rem,12vh,8rem)]">
+                 <div className="w-[clamp(4rem,10vh,8rem)] h-[clamp(4rem,10vh,8rem)] rounded-lg bg-gray-700" />
                 <div className="mt-6 w-[min(16rem,60vw)] text-gray-400">
                   <p className="text-base">No track playing</p>
                 </div>
@@ -120,34 +120,34 @@ export default function Home() {
           <ErrorBoundary>
             <div className="flex-grow flex flex-col justify-center">
               {isLoading.queue ? (
-                // Loading queue: show skeleton
-                <div className="flex items-center space-x-3 p-2 rounded-lg h-20">
+                 // Loading queue: show skeleton
+                 <div className="flex items-center space-x-3 p-2 rounded-lg h-10">
                   <Skeleton className="w-20 h-20 rounded-md" />
                   <div className="flex-grow">
                     <Skeleton className="h-5 w-28 mb-2" />
                     <Skeleton className="h-4 w-20" />
                   </div>
                 </div>
-              ) : upNext.length > 0 ? (
-                // Ready and we have an upcoming track
-                <div className="flex items-center space-x-3 p-2 rounded-lg h-20">
-                  {upNext[0]?.image ? (
-                    <img
-                      src={upNext[0].image!}
-                      alt={`Album art for the next song in the queue`}
-                      className="w-20 h-20 rounded-md object-cover"
-                    />
-                  ) : (
-                    <div className="w-20 h-20 rounded-md bg-gray-700" />
-                  )}
+               ) : upNext.length > 0 ? (
+                 // Ready and we have an upcoming track
+                 <div className="flex items-center space-x-3 p-2 rounded-lg h-10">
+                   {upNext[0]?.image ? (
+                     <img
+                       src={upNext[0].image!}
+                       alt={`Album art for the next song in the queue`}
+                       className="w-10 h-10 rounded-md object-cover"
+                     />
+                   ) : (
+                     <div className="w-10 h-10 rounded-md bg-gray-700" />
+                   )}
                   <div className="flex-grow min-w-0">
                     <p className="font-semibold text-base truncate">{upNext[0].name}</p>
                     <p className="text-sm text-gray-400 truncate">{upNext[0].artist}</p>
                   </div>
                 </div>
               ) : (
-                // Ready but no queue
-                <div className="flex items-center justify-center h-20 rounded-lg">
+                 // Ready but no queue
+                 <div className="flex items-center justify-center h-10 rounded-lg">
                   <p className="text-gray-300 text-sm">Queue is empty</p>
                 </div>
               )}

@@ -39,8 +39,8 @@ export default function AlbumGrid({ albums, albumsLoading, qrs, centerText, chil
               {children && children(album, index)}
             </div>
             <div className={`${shouldCenterText ? "text-center mt-2 flex-grow" : "text-left"} w-full`}>
-              <p className="font-semibold text-white text-sm leading-tight">{album.name}</p>
-              <p className="text-sm text-gray-400 leading-tight">{album.artist}</p>
+              <p className="font-semibold text-white text-sm leading-tight line-clamp-3 overflow-hidden">{album.name}</p>
+              <p className="text-sm text-gray-400 leading-tight line-clamp-3 overflow-hidden">{album.artist}</p>
             </div>
             {showQr && qrs && qrs[album.id] ? (
               <div className="mt-2 self-center">
