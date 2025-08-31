@@ -7,7 +7,7 @@ import { normalizeQueue } from "@/lib/queue";
 import NowPlayingPanel from "@/components/NowPlayingPanel";
 import { useRouter } from "next/navigation";
 import { getTokens, clearTokens } from "@/lib/tokens";
-import { getAlbums, addAlbum as addAlbumToStorage, removeAlbum as removeAlbumFromStorage, reorderAlbums } from "@/lib/localStorage";
+import { getAlbums, addAlbum as addAlbumToStorage, removeAlbum as removeAlbumFromStorage, reorderAlbums, saveAlbumsToStorage } from "@/lib/localStorage";
 
 interface Album {
   id: string;
@@ -155,10 +155,13 @@ export default function AdminPage() {
           
           // Albums-only updates (e.g., from reordering)
           if (messageType === 'albums' || (data.albums && Array.isArray(data.albums) && !('nowPlaying' in data) && !('queue' in data))) {
-            console.log('Albums-only update:', data.albums.length, 'albums');
+            console.log('💿 Albums-only update:', data.albums.length, 'albums');
             const albumsChanged = JSON.stringify(data.albums) !== JSON.stringify(albums);
             if (albumsChanged) {
               setAlbums(data.albums);
+              albumsRef.current = data.albums;
+              // Save to localStorage to keep in sync
+              saveAlbumsToStorage(data.albums);
             }
             return; // Don't process other fields for albums-only updates
           }
@@ -320,29 +323,18 @@ export default function AdminPage() {
   const addAlbum = async (album: Album) => {
     setPendingAddId(album.id);
     try {
-      // Use the album data from search results directly (simplified approach)
-      const payload = { ...album, position: albumsRef.current.length } as Album;
+      // Add album to localStorage
+      const updatedAlbums = addAlbumToStorage(album);
 
-      const res = await fetch('/api/admin/albums', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      // Update UI state
+      setAlbums(updatedAlbums);
+      albumsRef.current = updatedAlbums;
 
-      if (!res.ok) throw new Error('Failed to add album');
-
-      // Refresh albums from server to reflect persisted data and any enrichment
-      try {
-        const refreshed = await fetch('/api/albums').then(r => r.json());
-        setAlbums(refreshed);
-        albumsRef.current = refreshed;
-      } catch {
-        // Fall back to optimistic update if refresh fails
-        setAlbums(prev => {
-          const exists = prev.some(a => a.id === payload.id);
-          const next = exists ? prev.map(a => a.id === payload.id ? payload : a) : [...prev, payload];
-          albumsRef.current = next;
-          return next;
+      // Broadcast update to all clients via WebSocket
+      if (global.sendWebSocketUpdate) {
+        global.sendWebSocketUpdate({
+          type: 'albums',
+          albums: updatedAlbums
         });
       }
 
@@ -351,37 +343,26 @@ export default function AdminPage() {
     } catch (error) {
       console.error('Error adding album:', error);
     } finally {
-      // Clear pending state; no need to reorder on add — appended at end
+      // Clear pending state
       setPendingAddId(null);
     }
   };
 
   const removeAlbum = async (id: string) => {
     try {
-      // Call the DELETE API to remove the album from the server
-      const res = await fetch(`/api/admin/albums/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      // Remove album from localStorage
+      const updatedAlbums = removeAlbumFromStorage(id);
 
-      if (!res.ok) {
-        throw new Error('Failed to delete album');
-      }
+      // Update UI state
+      setAlbums(updatedAlbums);
+      albumsRef.current = updatedAlbums;
 
-      // After deletion, reindex positions locally and trigger reorder to broadcast updates
-      const current = albumsRef.current;
-      const filtered = current.filter(a => a.id !== id);
-      const reindexed = filtered.map((a, index) => ({ ...a, position: index }));
-
-      // Optimistically update UI
-      setAlbums(reindexed);
-
-      // Inform server to persist new order and broadcast to all clients
-      try {
-        await fetch('/api/admin/albums/reorder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(reindexed)
+      // Broadcast update to all clients via WebSocket
+      if (global.sendWebSocketUpdate) {
+        global.sendWebSocketUpdate({
+          type: 'albums',
+          albums: updatedAlbums
         });
-      } catch (err) {
-        console.error('Error broadcasting reorder after delete:', err);
       }
     } catch (error) {
       console.error('Error removing album:', error);
@@ -440,15 +421,19 @@ export default function AdminPage() {
 
   // Handle album reorder coming from AlbumWall
   const handleReorder = async (updatedAlbums: Album[]) => {
+    // Save reordered albums to localStorage
+    reorderAlbums(updatedAlbums);
+
+    // Update UI state
     setAlbums(updatedAlbums);
-    try {
-      await fetch('/api/admin/albums/reorder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedAlbums)
+    albumsRef.current = updatedAlbums;
+
+    // Broadcast update to all clients via WebSocket
+    if (global.sendWebSocketUpdate) {
+      global.sendWebSocketUpdate({
+        type: 'albums',
+        albums: updatedAlbums
       });
-    } catch (error) {
-      console.error('Error updating album positions:', error);
     }
   };
 

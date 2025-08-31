@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Skeleton from "@/components/Skeleton";
 import { normalizeQueue } from "@/lib/queue";
 import ResponsiveAlbumGrid from "@/components/ResponsiveAlbumGrid";
+import { getAlbums, saveAlbumsToStorage } from "@/lib/localStorage";
 
 interface Album {
   id: string;
@@ -33,8 +34,7 @@ export default function Home() {
 
 
   useEffect(() => {
-    fetch('/api/albums')
-      .then(res => res.json())
+    getAlbums()
       .then(setAlbums)
       .finally(() => setAlbumsLoading(false));
   }, []);
@@ -92,7 +92,10 @@ export default function Home() {
           
           // Albums-only updates (e.g., from reordering)
           if (messageType === 'albums' || (data.albums && Array.isArray(data.albums) && !('nowPlaying' in data) && !('queue' in data))) {
+            console.log('💿 Updating albums from WebSocket:', data.albums.length, 'albums');
             setAlbums(data.albums);
+            // Save to localStorage to keep in sync
+            saveAlbumsToStorage(data.albums);
             return; // Don't process other fields for albums-only updates
           }
           

@@ -24,17 +24,25 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - If you prefer the app to run on `http://localhost:3000` while the Spotify redirect uses `127.0.0.1`, set `APP_BASE_URL=http://localhost:3000`. The callback exchanges tokens on the Spotify host and then redirects to `APP_BASE_URL` for `/callback/success`.
 - The `SPOTIFY_REDIRECT_URI` must match character-for-character (scheme, host, port, path, no trailing slash) in both the authorize URL and the token exchange.
 
-### Set Up Initial Album Data
+### Album Data Storage
 
-- Copy `data/albums.example.json` to `data/albums.json` to start with sample albums
-- The `data/albums.json` file is gitignored so your custom album selections won't be committed
+The app now uses **localStorage** for album management instead of JSON files:
+
+- **Default albums**: Loaded from `data/albums.example.json` on first use
+- **User albums**: Stored in browser localStorage (not committed to git)
+- **Real-time sync**: All album changes sync instantly across all connected clients
+- **No server persistence**: Albums are stored client-side for simplicity
+
+The `data/albums.example.json` file provides starter content but is not used for ongoing storage.
 
 ### Album Management
 
 - **Add Albums**: Search for albums in the admin panel and click the add button
 - **Reorder Albums**: Drag and drop albums to change their order in the wall
 - **Delete Albums**: Click the delete button (🗑️) on any album in the admin panel
-- All changes are automatically synced to all connected clients via WebSocket
+- **Data Storage**: All albums are stored in browser localStorage
+- **Real-time Sync**: Changes sync instantly to all connected clients via WebSocket
+- **No Persistence**: Albums are stored client-side only (refreshing will reset to defaults)
 
 Admin login redirects to Spotify to grant access. Tokens are stored client-side for the admin dashboard and used by server routes for playback/queue.
 

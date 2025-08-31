@@ -118,7 +118,7 @@ async function handleRateLimitError(error: any, operation: string) {
 }
 
 export async function GET(request: NextRequest) {
-  const clientIP = request.ip || 'unknown';
+  const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
   const now = Date.now();
 
   // Check rate limit
