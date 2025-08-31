@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAdminAuth, withRateLimit } from '@/lib/auth/middleware';
 import { readAlbumsFromFile, writeAlbumsToFile } from '@/lib/utils/albums-file';
 import { Album } from '@/websocket/types';
+import { logger } from '@/lib/utils/logger';
 
 // GET /api/admin/albums - List all albums
 export const GET = withAdminAuth(async () => {

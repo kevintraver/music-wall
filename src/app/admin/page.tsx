@@ -518,21 +518,22 @@ export default function AdminPage() {
         });
 
         if (!res.ok) {
-          throw new Error(`Playback ${action} failed`);
+          throw new Error(`Playback ${action} failed with status ${res.status}`);
         }
 
         logger.success(`Playback ${action} successful`);
 
       } catch (error) {
-        console.error(`❌ Error ${action}:`, error);
+        logger.error(`Error ${action}:`, error);
 
         // Revert optimistic update on error
         setIsPlaying(originalIsPlaying);
       } finally {
         // Re-enable button after API call completes
         setPlaybackActionInProgress(null);
+        console.log(`🔄 ${action} request completed`);
       }
-    }, [isPlaying, playbackActionInProgress]);
+    }, [isPlaying, playbackActionInProgress, lastApiCall]);
 
   // Handle album reorder coming from AlbumWall
   const handleReorder = async (updatedAlbums: Album[]) => {
