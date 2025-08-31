@@ -21,11 +21,11 @@ export async function GET(request: NextRequest) {
     const host = request.headers.get('host') || 'localhost:3000';
     const redirectUri = `http://${host}/callback`;
 
-    // Initialize Spotify API with correct redirect URI
+    // Initialize Spotify API with consistent redirect URI
     spotifyApi = new SpotifyWebApi({
       clientId: process.env.SPOTIFY_CLIENT_ID,
       clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
-      redirectUri: redirectUri
+      redirectUri: 'http://localhost:3000/callback'
     });
 
     const codeVerifier = getCodeVerifier();
