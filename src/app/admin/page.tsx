@@ -765,8 +765,13 @@ export default function AdminPage() {
                              {track.artist}
                            </div>
                          </div>
-                         <button className="w-8 h-8 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500/10 opacity-0 hover:opacity-100 transition-opacity">
-                           ⊖
+                         <button
+                           onClick={() => handlePlaybackAction('next', '/api/playback/playback/next')}
+                           disabled={!!playbackActionInProgress}
+                           className="w-8 h-8 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500/10 opacity-0 hover:opacity-100 transition-opacity disabled:opacity-50"
+                           title="Skip this track"
+                         >
+                           🗑️
                          </button>
                        </div>
                      ))
