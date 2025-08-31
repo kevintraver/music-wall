@@ -8,6 +8,7 @@ import { getTokens, clearTokens } from "@/lib/auth/tokens";
 import { logger } from "@/lib/utils/logger";
 import { getAlbums, addAlbum, removeAlbum, saveAlbumsToStorage, resetToDefaults, setAlbumTracks } from "@/lib/utils/localStorage";
 import AddAlbumModal from "@/components/admin/AddAlbumModal";
+import AlbumWall from "@/components/admin/AlbumWall";
 
 interface Album {
   id: string;
@@ -100,14 +101,7 @@ export default function AdminPage() {
   const [pendingAddId, setPendingAddId] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
-  // Compute responsive grid layout based on album count
-  const getGridLayout = (albumCount: number) => {
-    if (albumCount <= 6) return { cols: 3, gap: 4 };
-    if (albumCount <= 12) return { cols: 4, gap: 3 };
-    if (albumCount <= 20) return { cols: 5, gap: 2 };
-    if (albumCount <= 30) return { cols: 6, gap: 1 };
-    return { cols: 8, gap: 1 };
-  };
+
 
   useEffect(() => {
     // Check auth status on load
@@ -581,6 +575,33 @@ export default function AdminPage() {
     }
   };
 
+  const handleReorder = async (updatedAlbums: Album[]) => {
+    // Store original order for potential rollback
+    const originalAlbums = [...albums];
+
+    // Optimistic update: Update UI immediately
+    setAlbums(updatedAlbums);
+    albumsRef.current = updatedAlbums;
+
+    try {
+      // Broadcast updated albums to all clients
+      await syncAlbums(updatedAlbums);
+    } catch (error) {
+      console.error('❌ Error reordering albums:', error);
+
+      // Rollback: Restore original order
+      try {
+        setAlbums(originalAlbums);
+        albumsRef.current = originalAlbums;
+
+        // Show error to user
+        alert('Failed to reorder albums. The original order has been restored.');
+      } catch (rollbackError) {
+        console.error('Error during rollback:', rollbackError);
+      }
+    }
+  };
+
   const handleLogout = async () => {
     try {
       // Clear tokens from localStorage
@@ -704,51 +725,13 @@ export default function AdminPage() {
               <h2 className="text-xl font-semibold text-center flex-1">Current Wall</h2>
               <div className="w-8"></div> {/* Spacer for balance */}
             </div>
-            <div className="flex-1 pr-2">
-              <div
-                className="grid h-full"
-                style={{
-                  gridTemplateColumns: `repeat(${getGridLayout(albums.length).cols}, 1fr)`,
-                  gap: `${Math.max(2, getGridLayout(albums.length).gap - 1)}px`
-                }}
-              >
-                {albumsLoading ? (
-                  Array.from({ length: Math.min(20, Math.max(6, albums.length || 6)) }).map((_, i) => (
-                    <div key={i} className="flex flex-col min-h-0">
-                      <div className="aspect-square bg-gray-700 rounded-lg flex-shrink-0" />
-                      <div className="mt-1 px-1 h-8 bg-gray-700 rounded flex-1" />
-                    </div>
-                  ))
-                ) : (
-                  [...albums]
-                    .sort((a, b) => a.position - b.position)
-                      .map((album) => (
-                        <div key={album.id} className="group relative flex flex-col min-h-0">
-                          <div className="relative aspect-square bg-gray-700 rounded-lg overflow-hidden cursor-pointer hover:scale-105 transition-transform flex-shrink-0">
-                            <img
-                              src={album.image}
-                              alt={`${album.name} album cover`}
-                              className="w-full h-full object-cover"
-                            />
-                            <button
-                              onClick={() => handleRemoveAlbum(album.id)}
-                              className="absolute top-1 right-1 w-6 h-6 bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 text-xs"
-                            >
-                              ×
-                            </button>
-                          </div>
-                          <div className="mt-1 px-1 flex-1 min-h-0">
-                            <div className="text-xs font-semibold whitespace-nowrap overflow-hidden text-ellipsis leading-tight">
-                              {album.name}
-                            </div>
-                            <div className="text-xs text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis leading-tight">
-                              {album.artist}
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                )}
-              </div>
+            <div className="flex-1">
+              <AlbumWall
+                albums={albums}
+                albumsLoading={albumsLoading}
+                onRemove={handleRemoveAlbum}
+                onReorder={handleReorder}
+              />
             </div>
           </div>
 
