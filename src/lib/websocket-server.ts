@@ -10,7 +10,8 @@ declare global {
   var setSpotifyTokens: (tokens: { accessToken?: string; refreshToken?: string }) => void;
 }
 
-const TOKEN_FILE = path.join(process.cwd(), 'data', 'spotify-tokens.json');
+const DATA_DIR = path.join(process.cwd(), 'data');
+const TOKEN_FILE = path.join(DATA_DIR, 'spotify-tokens.json');
 
 // OAuth variables
 let accessToken = '';
@@ -50,6 +51,31 @@ function saveTokens() {
 // Load saved tokens
 const tokensLoaded = loadTokens();
 console.log('🔑 WS tokens loaded from file:', tokensLoaded, '| Access:', !!accessToken, 'Refresh:', !!refreshToken);
+
+// Watch for token file changes written by the Next server (OAuth callback or admin sync)
+try {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.watch(DATA_DIR, { persistent: false }, (eventType, filename) => {
+    if (filename === 'spotify-tokens.json') {
+      try {
+        const before = { hasAccess: !!accessToken, hasRefresh: !!refreshToken };
+        if (fs.existsSync(TOKEN_FILE)) {
+          const tokens = JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8'));
+          accessToken = tokens.accessToken || '';
+          refreshToken = tokens.refreshToken || '';
+          if (accessToken) spotifyApi.setAccessToken(accessToken);
+          console.log('👀 Detected token file change. Tokens reloaded.', { before, after: { hasAccess: !!accessToken, hasRefresh: !!refreshToken } });
+          // Trigger immediate broadcast to prime clients
+          fetchAndBroadcast().catch(() => {/* ignore */});
+        }
+      } catch (e) {
+        console.warn('Failed to reload tokens after file change:', e);
+      }
+    }
+  });
+} catch (e) {
+  console.warn('Token file watcher could not be set up:', e);
+}
 
 // Spotify API setup
 const spotifyApi = new SpotifyWebApi({
