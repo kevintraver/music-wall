@@ -5,7 +5,78 @@
     "artist": "Pink Floyd",
     "image": "https://i.scdn.co/image/ab67616d0000b273ea7caaff71dea1051d49b2fe",
     "position": 0,
-    "tracks": []
+    "tracks": [
+      {
+        "id": "574y1r7o2tRA009FW0LE7v",
+        "name": "Speak to Me",
+        "duration_ms": 65314,
+        "artist": "Pink Floyd",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ea7caaff71dea1051d49b2fe"
+      },
+      {
+        "id": "2ctvdKmETyOzPb2GiJJT53",
+        "name": "Breathe (In the Air)",
+        "duration_ms": 169534,
+        "artist": "Pink Floyd",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ea7caaff71dea1051d49b2fe"
+      },
+      {
+        "id": "73OIUNKRi2y24Cu9cOLrzM",
+        "name": "On the Run",
+        "duration_ms": 225384,
+        "artist": "Pink Floyd",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ea7caaff71dea1051d49b2fe"
+      },
+      {
+        "id": "3TO7bbrUKrOSPGRTB5MeCz",
+        "name": "Time",
+        "duration_ms": 413947,
+        "artist": "Pink Floyd",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ea7caaff71dea1051d49b2fe"
+      },
+      {
+        "id": "2TjdnqlpwOjhijHCwHCP2d",
+        "name": "The Great Gig in the Sky",
+        "duration_ms": 283872,
+        "artist": "Pink Floyd",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ea7caaff71dea1051d49b2fe"
+      },
+      {
+        "id": "0vFOzaXqZHahrZp6enQwQb",
+        "name": "Money",
+        "duration_ms": 382834,
+        "artist": "Pink Floyd",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ea7caaff71dea1051d49b2fe"
+      },
+      {
+        "id": "1TKTiKp3zbNgrBH2IwSwIx",
+        "name": "Us and Them",
+        "duration_ms": 469224,
+        "artist": "Pink Floyd",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ea7caaff71dea1051d49b2fe"
+      },
+      {
+        "id": "6FBPOJLxUZEair6x4kLDhf",
+        "name": "Any Colour You Like",
+        "duration_ms": 206429,
+        "artist": "Pink Floyd",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ea7caaff71dea1051d49b2fe"
+      },
+      {
+        "id": "05uGBKRCuePsf43Hfm0JwX",
+        "name": "Brain Damage",
+        "duration_ms": 226666,
+        "artist": "Pink Floyd",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ea7caaff71dea1051d49b2fe"
+      },
+      {
+        "id": "1tDWVeCR9oWGX8d5J9rswk",
+        "name": "Eclipse",
+        "duration_ms": 130427,
+        "artist": "Pink Floyd",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ea7caaff71dea1051d49b2fe"
+      }
+    ]
   },
   {
     "id": "0ETFjACtuP2ADo6LFhL6HN",
@@ -13,7 +84,127 @@
     "artist": "The Beatles",
     "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25",
     "position": 1,
-    "tracks": []
+    "tracks": [
+      {
+        "id": "2EqlS6tkEnglzr7tkKAAYD",
+        "name": "Come Together - Remastered 2009",
+        "duration_ms": 259946,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "0pNeVovbiZHkulpGeOx1Gj",
+        "name": "Something - Remastered 2009",
+        "duration_ms": 182293,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "2S8xyNRJX1XQdo3qnTuovI",
+        "name": "Maxwell's Silver Hammer - Remastered 2009",
+        "duration_ms": 207920,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "2mxByJWOajjiVsLWjNXvDJ",
+        "name": "Oh! Darling - Remastered 2009",
+        "duration_ms": 207240,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "0suLngfo7rJoetk7Ub6N8l",
+        "name": "Octopus's Garden - Remastered 2009",
+        "duration_ms": 170720,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "3Z25k4ZF6QENy2d9YatsM5",
+        "name": "I Want You (She's So Heavy) - Remastered 2009",
+        "duration_ms": 467320,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "6dGnYIeXmHdcikdzNNDMm2",
+        "name": "Here Comes The Sun - Remastered 2009",
+        "duration_ms": 185733,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "1rxoyGj1QuPoVi8fOft1Kt",
+        "name": "Because - Remastered 2009",
+        "duration_ms": 165666,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "1jOLTO379yIu9aMnCkpMQl",
+        "name": "You Never Give Me Your Money - Remastered 2009",
+        "duration_ms": 242973,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "4nwKdZID1ht0lDBJ5h2p87",
+        "name": "Sun King - Remastered 2009",
+        "duration_ms": 146266,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "4JOyMhad5dD81uGYLGgKrS",
+        "name": "Mean Mr Mustard - Remastered 2009",
+        "duration_ms": 66533,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "1FTCA6wQwulQFokDddKE68",
+        "name": "Polythene Pam - Remastered 2009",
+        "duration_ms": 72640,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "2jtUGFsqanQ82zqDlhiKIp",
+        "name": "She Came In Through The Bathroom Window - Remastered 2009",
+        "duration_ms": 118626,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "01SfTM5nfCou5gQL70r6gs",
+        "name": "Golden Slumbers - Remastered 2009",
+        "duration_ms": 91760,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "5eZrW59C3UgBhkqNlowEID",
+        "name": "Carry That Weight - Remastered 2009",
+        "duration_ms": 96466,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "5aHHf6jrqDRb1fcBmue2kn",
+        "name": "The End - Remastered 2009",
+        "duration_ms": 141613,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      },
+      {
+        "id": "6UCFZ9ZOFRxK8oak7MdPZu",
+        "name": "Her Majesty - Remastered 2009",
+        "duration_ms": 25986,
+        "artist": "The Beatles",
+        "image": "https://i.scdn.co/image/ab67616d0000b273dc30583ba717007b00cceb25"
+      }
+    ]
   },
   {
     "id": "2guirTSEqLizK7j9i1MTTZ",
@@ -21,7 +212,99 @@
     "artist": "Nirvana",
     "image": "https://i.scdn.co/image/ab67616d0000b273e175a19e530c898d167d39bf",
     "position": 2,
-    "tracks": []
+    "tracks": [
+      {
+        "id": "5ghIJDpPoe3CfHMGu71E6T",
+        "name": "Smells Like Teen Spirit",
+        "duration_ms": 301920,
+        "artist": "Nirvana",
+        "image": "https://i.scdn.co/image/ab67616d0000b273e175a19e530c898d167d39bf"
+      },
+      {
+        "id": "30HCB1FoE77IfGRyNv4eFq",
+        "name": "In Bloom",
+        "duration_ms": 255080,
+        "artist": "Nirvana",
+        "image": "https://i.scdn.co/image/ab67616d0000b273e175a19e530c898d167d39bf"
+      },
+      {
+        "id": "4P5KoWXOxwuobLmHXLMobV",
+        "name": "Come As You Are",
+        "duration_ms": 218920,
+        "artist": "Nirvana",
+        "image": "https://i.scdn.co/image/ab67616d0000b273e175a19e530c898d167d39bf"
+      },
+      {
+        "id": "5mJGLBNJM0GULqAoL5mb9C",
+        "name": "Breed",
+        "duration_ms": 184040,
+        "artist": "Nirvana",
+        "image": "https://i.scdn.co/image/ab67616d0000b273e175a19e530c898d167d39bf"
+      },
+      {
+        "id": "2YodwKJnbPyNKe8XXSE9V7",
+        "name": "Lithium",
+        "duration_ms": 257053,
+        "artist": "Nirvana",
+        "image": "https://i.scdn.co/image/ab67616d0000b273e175a19e530c898d167d39bf"
+      },
+      {
+        "id": "3tlXDvaNrrOmdvG0XVUOcv",
+        "name": "Polly",
+        "duration_ms": 173853,
+        "artist": "Nirvana",
+        "image": "https://i.scdn.co/image/ab67616d0000b273e175a19e530c898d167d39bf"
+      },
+      {
+        "id": "2jmVGWe4MYY1zAAzpFHHcC",
+        "name": "Territorial Pissings",
+        "duration_ms": 142946,
+        "artist": "Nirvana",
+        "image": "https://i.scdn.co/image/ab67616d0000b273e175a19e530c898d167d39bf"
+      },
+      {
+        "id": "5Ddlk6C2JVxb1SReZ6O1wk",
+        "name": "Drain You",
+        "duration_ms": 223880,
+        "artist": "Nirvana",
+        "image": "https://i.scdn.co/image/ab67616d0000b273e175a19e530c898d167d39bf"
+      },
+      {
+        "id": "7glld4kxYHp61zIPtSVHNk",
+        "name": "Lounge Act",
+        "duration_ms": 156426,
+        "artist": "Nirvana",
+        "image": "https://i.scdn.co/image/ab67616d0000b273e175a19e530c898d167d39bf"
+      },
+      {
+        "id": "4l012k8ZcAdVbUvZ4kae5Q",
+        "name": "Stay Away",
+        "duration_ms": 211440,
+        "artist": "Nirvana",
+        "image": "https://i.scdn.co/image/ab67616d0000b273e175a19e530c898d167d39bf"
+      },
+      {
+        "id": "651koV4RRMMX6NDbW1ElwP",
+        "name": "On A Plain",
+        "duration_ms": 194426,
+        "artist": "Nirvana",
+        "image": "https://i.scdn.co/image/ab67616d0000b273e175a19e530c898d167d39bf"
+      },
+      {
+        "id": "1nFtiJxYdhtFfFtfXBv06s",
+        "name": "Something In The Way",
+        "duration_ms": 232146,
+        "artist": "Nirvana",
+        "image": "https://i.scdn.co/image/ab67616d0000b273e175a19e530c898d167d39bf"
+      },
+      {
+        "id": "0vNHCXmNzVa8h54SE3JDm7",
+        "name": "Endless, Nameless",
+        "duration_ms": 403293,
+        "artist": "Nirvana",
+        "image": "https://i.scdn.co/image/ab67616d0000b273e175a19e530c898d167d39bf"
+      }
+    ]
   },
   {
     "id": "6X9k3hSsvQck2OfKYdBbXr",
@@ -29,6 +312,133 @@
     "artist": "Queen",
     "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a",
     "position": 3,
-    "tracks": []
+    "tracks": [
+      {
+        "id": "4J0kN8QS2esY6cWBsFjtW9",
+        "name": "Death On Two Legs (Dedicated To...) - Remastered 2011",
+        "duration_ms": 223173,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "12TZzfqJyY3UvtZ3lq1WmY",
+        "name": "Lazing On A Sunday Afternoon - Remastered 2011",
+        "duration_ms": 67400,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "1EID0aupOLdv4ZDQu2Jbrz",
+        "name": "I'm In Love With My Car - Remastered 2011",
+        "duration_ms": 184893,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "4OKf7CcYuw5H2HptkcKxcP",
+        "name": "You're My Best Friend - Remastered 2011",
+        "duration_ms": 170800,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "0kIpcu3DQacQObHVyra9Jx",
+        "name": "'39 - Remastered 2011",
+        "duration_ms": 210800,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "2pruzOkBkSBr74tpmtJIXU",
+        "name": "Sweet Lady - Remastered 2011",
+        "duration_ms": 242133,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "5w49nWH532c39tuJ3kthEm",
+        "name": "Seaside Rendezvous - Remastered 2011",
+        "duration_ms": 134133,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "1Ji1gZtpgMBepbNpyiLfgv",
+        "name": "The Prophet's Song - Remastered 2011",
+        "duration_ms": 500960,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "790YJcgHlN3SaosQCHlWzn",
+        "name": "Love Of My Life - Remastered 2011",
+        "duration_ms": 217400,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "1AwRWJXurNEFSTwQdViYqD",
+        "name": "Good Company - Remastered 2011",
+        "duration_ms": 203440,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "7tFiyTwD0nx5a1eklYtX2J",
+        "name": "Bohemian Rhapsody - Remastered 2011",
+        "duration_ms": 354320,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "5lI8wWbYEwDuph9hoPd1s6",
+        "name": "God Save The Queen - Remastered 2011",
+        "duration_ms": 75346,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "0hpe7o5pdxzlTXvdd0s5CR",
+        "name": "Keep Yourself Alive - Long Lost Retake / June 1975 / Remastered 2011",
+        "duration_ms": 243560,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "6jcke26uBtJeRlo7U7glLG",
+        "name": "Bohemian Rhapsody - Operatic Section / 2011 A Cappella Mix",
+        "duration_ms": 63453,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "49L5s7lTES5EVnyGO09H0S",
+        "name": "You’re My Best Friend - Backing Track Mix",
+        "duration_ms": 177893,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "0ydMeIKHW3PB3vrygvjoHx",
+        "name": "I’m In Love With My Car - Guitar & Vocal Mix / 2011",
+        "duration_ms": 198466,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "0u2ydS9Bbw4YHFYQ3rHBoM",
+        "name": "'39 - Live At Earl’s Court, London / June 1977",
+        "duration_ms": 226480,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      },
+      {
+        "id": "2Xfp6J2NZ3htDoOTIT2P3D",
+        "name": "Love Of My Life - Live In Argentina / June 1979",
+        "duration_ms": 223733,
+        "artist": "Queen",
+        "image": "https://i.scdn.co/image/ab67616d0000b273ce4f1737bc8a646c8c4bd25a"
+      }
+    ]
   }
 ]
