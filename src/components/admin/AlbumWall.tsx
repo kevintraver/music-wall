@@ -25,9 +25,9 @@ export default function AlbumWall({ albums, albumsLoading, onRemove }: Props) {
   }, [albums]);
 
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-4 gap-6">
       {albumsLoading ? (
-        Array.from({ length: 9 }).map((_, i) => (
+        Array.from({ length: 12 }).map((_, i) => (
           <div key={i} className="flex flex-col">
             <div className="aspect-square bg-gray-700 rounded-xl mb-2" />
             <div className="h-8 bg-gray-700 rounded" />
