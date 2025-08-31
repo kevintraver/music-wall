@@ -6,7 +6,7 @@ import Skeleton from "@/components/shared/Skeleton";
 import AlbumWall from "@/components/admin/AlbumWall";
 import { normalizeQueue } from "@/lib/spotify/queue";
 import NowPlayingPanel from "@/components/shared/NowPlayingPanel";
-import ErrorBoundary from "@/components/shared/ErrorBoundary";
+
 import { getTokens, clearTokens } from "@/lib/auth/tokens";
 import { getAlbums, addAlbum as addAlbumToStorage, removeAlbum as removeAlbumFromStorage, reorderAlbums, saveAlbumsToStorage, resetToDefaults } from "@/lib/utils/localStorage";
 
@@ -49,7 +49,7 @@ export default function AdminPage() {
   const [playbackUpdatePending, setPlaybackUpdatePending] = useState(false);
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
   const [queueLoaded, setQueueLoaded] = useState(false);
-   const [playbackActionLoading, setPlaybackActionLoading] = useState<string | null>(null);
+
    const [playbackActionInProgress, setPlaybackActionInProgress] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [showWsTooltip, setShowWsTooltip] = useState(false);
@@ -228,7 +228,7 @@ export default function AdminPage() {
             setQueueLoaded(true);
 
             // Clear loading states when WebSocket confirms updates
-            setPlaybackActionLoading(null);
+
             setPlaybackUpdatePending(false);
             return;
           }
@@ -260,7 +260,7 @@ export default function AdminPage() {
             setQueueLoaded(true);
 
             // Clear loading states when WebSocket confirms updates
-            setPlaybackActionLoading(null);
+
             setPlaybackUpdatePending(false);
             return;
           }
@@ -473,10 +473,7 @@ export default function AdminPage() {
      // Set action in progress immediately
      setPlaybackActionInProgress(action);
 
-     // Don't show loading for pause/play actions (immediate feedback)
-     if (action !== 'pause' && action !== 'play') {
-       setPlaybackActionLoading(action);
-     }
+      // Don't show loading for pause/play actions (immediate feedback)
      if (action !== 'pause' && action !== 'play') {
        setPlaybackUpdatePending(true);
      }
@@ -501,30 +498,18 @@ export default function AdminPage() {
        if (!res.ok) {
          throw new Error(`Playback ${action} failed`);
        }
-       // Keep loading state until WebSocket confirms the update (except for pause/play)
-       if (action !== 'pause' && action !== 'play') {
-         setTimeout(() => {
-           if (playbackActionLoading === action) {
-             setPlaybackActionLoading(null);
-             setPlaybackUpdatePending(false);
-           }
-         }, 2000); // Fallback timeout
-       } else {
-         // For pause/play, clear loading states immediately since we updated optimistically
-         setPlaybackActionLoading(null);
-         setPlaybackUpdatePending(false);
-       }
-     } catch (error) {
-       console.error(`Error ${action}:`, error);
-       // Revert optimistic update on error
-       setIsPlaying(originalIsPlaying);
-       setPlaybackActionLoading(null);
-       setPlaybackUpdatePending(false);
-     } finally {
-       // Always clear the in-progress state
-       setPlaybackActionInProgress(null);
-     }
-   }, [isPlaying, playbackActionInProgress]);
+        // Clear pending state
+        setPlaybackUpdatePending(false);
+      } catch (error) {
+        console.error(`Error ${action}:`, error);
+        // Revert optimistic update on error
+        setIsPlaying(originalIsPlaying);
+        setPlaybackUpdatePending(false);
+      } finally {
+        // Always clear the in-progress state
+        setPlaybackActionInProgress(null);
+      }
+    }, [isPlaying, playbackActionInProgress]);
 
   // Handle album reorder coming from AlbumWall
   const handleReorder = async (updatedAlbums: Album[]) => {
@@ -651,16 +636,15 @@ export default function AdminPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Now Playing panel */}
-              <NowPlayingPanel
-                nowPlaying={nowPlaying}
-                isPlaying={isPlaying}
-                playbackLoaded={playbackLoaded}
-                playbackUpdatePending={playbackUpdatePending}
-                playbackActionLoading={playbackActionLoading}
-                playbackActionInProgress={playbackActionInProgress}
-                onAction={handlePlaybackAction}
-                colSpan="lg:col-span-2"
-              />
+               <NowPlayingPanel
+                 nowPlaying={nowPlaying}
+                 isPlaying={isPlaying}
+                 playbackLoaded={playbackLoaded}
+                 playbackUpdatePending={playbackUpdatePending}
+                 playbackActionInProgress={playbackActionInProgress}
+                 onAction={handlePlaybackAction}
+                 colSpan="lg:col-span-2"
+               />
 
               {/* Queue panel */}
               <div className="lg:col-span-1 bg-white p-6 rounded-xl shadow-md flex flex-col">
@@ -749,21 +733,22 @@ export default function AdminPage() {
                       <button
                         aria-label="Clear search"
                         onClick={() => { setSearchQuery(''); setSearchResults([]); setIsDebouncing(false); }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 w-8 h-8 grid place-items-center rounded"
                         type="button"
                       >
-                        <span className="material-icons text-lg">close</span>
+                        <span className="material-icons text-base leading-none">close</span>
                       </button>
                     )}
-                    {isSearching && (
-                      <span className="material-icons animate-spin absolute right-2 top-1/2 -translate-y-1/2 text-gray-400" aria-live="polite" aria-busy="true">autorenew</span>
-                    )}
+                    {/* Spinner removed from input; show loading below instead */}
                   </div>
                 </div>
                 <div className="p-6 overflow-y-auto flex-1">
                   {(isSearching || searchQuery.trim()) && (
                     <>
                       <ul className="space-y-3">
+                        {isSearching && (
+                          <li className="text-gray-500 px-3">Searching...</li>
+                        )}
                         {isSearching && (
                           Array.from({ length: 6 }).map((_, i) => (
                             <li key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">

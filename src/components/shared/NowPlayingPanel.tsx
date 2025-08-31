@@ -16,7 +16,6 @@ type Props = {
   isPlaying: boolean;
   playbackLoaded: boolean;
   playbackUpdatePending: boolean;
-  playbackActionLoading: string | null;
   playbackActionInProgress: string | null;
   onAction: (action: "previous" | "play" | "pause" | "next", endpoint: string) => void;
   colSpan?: string;
@@ -27,7 +26,6 @@ function NowPlayingPanelImpl({
   isPlaying,
   playbackLoaded,
   playbackUpdatePending,
-  playbackActionLoading,
   playbackActionInProgress,
   onAction,
   colSpan = "lg:col-span-2",
@@ -56,45 +54,33 @@ function NowPlayingPanelImpl({
                 <p className="text-3xl font-bold">{nowPlaying.name}</p>
                 <p className="text-xl text-gray-300 mt-1">{nowPlaying.artist}</p>
                 <div className="flex items-center justify-center space-x-6 mt-6">
-                   <button
-                     type="button"
-                     aria-label="Previous"
-                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAction("previous", "/api/playback/playback/previous"); }}
-                     disabled={playbackActionLoading === "previous" || !!playbackActionInProgress}
-                     className="bg-gray-700 text-white w-14 h-14 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                   >
-                     {playbackActionLoading === "previous" || !!playbackActionInProgress ? (
-                       <span className="material-icons animate-spin text-2xl">autorenew</span>
-                     ) : (
-                       <span className="material-icons text-3xl">skip_previous</span>
-                     )}
-                   </button>
-                   <button
-                     type="button"
-                     aria-label={isPlaying ? "Pause" : "Play"}
-                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAction(isPlaying ? "pause" : "play", `/api/playback/playback/${isPlaying ? "pause" : "play"}`); }}
-                     disabled={playbackActionLoading === "play" || playbackActionLoading === "pause" || !!playbackActionInProgress}
-                     className="bg-green-500 text-white w-16 h-16 rounded-full hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                   >
-                     {playbackActionLoading === "play" || playbackActionLoading === "pause" || !!playbackActionInProgress ? (
-                       <span className="material-icons animate-spin text-3xl">autorenew</span>
-                     ) : (
-                       <span className="material-icons text-4xl">{isPlaying ? "pause" : "play_arrow"}</span>
-                     )}
-                   </button>
-                   <button
-                     type="button"
-                     aria-label="Next"
-                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAction("next", "/api/playback/playback/next"); }}
-                     disabled={playbackActionLoading === "next" || !!playbackActionInProgress}
-                     className="bg-gray-700 text-white w-14 h-14 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                   >
-                     {playbackActionLoading === "next" || !!playbackActionInProgress ? (
-                       <span className="material-icons animate-spin text-2xl">autorenew</span>
-                     ) : (
-                       <span className="material-icons text-3xl">skip_next</span>
-                     )}
-                   </button>
+                    <button
+                      type="button"
+                      aria-label="Previous"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAction("previous", "/api/playback/playback/previous"); }}
+                      disabled={!!playbackActionInProgress}
+                      className="bg-gray-700 text-white w-14 h-14 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="material-icons text-3xl">skip_previous</span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={isPlaying ? "Pause" : "Play"}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAction(isPlaying ? "pause" : "play", `/api/playback/playback/${isPlaying ? "pause" : "play"}`); }}
+                      disabled={!!playbackActionInProgress}
+                      className="bg-green-500 text-white w-16 h-16 rounded-full hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="material-icons text-4xl">{isPlaying ? "pause" : "play_arrow"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Next"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAction("next", "/api/playback/playback/next"); }}
+                      disabled={!!playbackActionInProgress}
+                      className="bg-gray-700 text-white w-14 h-14 rounded-full hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="material-icons text-3xl">skip_next</span>
+                    </button>
                 </div>
               </div>
             </>

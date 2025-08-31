@@ -35,7 +35,7 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
 
     // Broadcast update via WebSocket
     if (global.sendWebSocketUpdate) {
-      global.sendWebSocketUpdate({ type: 'albums', payload: albumsWithPositions });
+      global.sendWebSocketUpdate({ type: 'albums', albums: albumsWithPositions });
     }
 
     console.log(`✅ Albums reordered successfully (${albumsWithPositions.length} albums)`);

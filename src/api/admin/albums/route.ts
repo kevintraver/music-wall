@@ -4,7 +4,7 @@ import { readAlbumsFromFile, writeAlbumsToFile } from '@/lib/utils/albums-file';
 import { Album } from '@/websocket/types';
 
 // GET /api/admin/albums - List all albums
-export const GET = withAdminAuth(async (request: NextRequest) => {
+export const GET = withAdminAuth(async () => {
   try {
     const albums = readAlbumsFromFile();
     return NextResponse.json({
@@ -25,7 +25,16 @@ export const GET = withAdminAuth(async (request: NextRequest) => {
 export const POST = withRateLimit(
   withAdminAuth(async (request: NextRequest) => {
     try {
-      const albumData: Omit<Album, 'position'> = await request.json();
+      let albumData: Omit<Album, 'position'>;
+      try {
+        albumData = await request.json();
+      } catch (jsonError) {
+        console.error('Failed to parse request JSON:', jsonError);
+        return NextResponse.json(
+          { error: 'Invalid JSON in request body' },
+          { status: 400 }
+        );
+      }
 
       // Validate required fields
       if (!albumData.id || !albumData.name || !albumData.artist || !albumData.image) {
@@ -36,7 +45,17 @@ export const POST = withRateLimit(
       }
 
       // Check if album already exists
-      const existingAlbums = readAlbumsFromFile();
+      let existingAlbums: Album[];
+      try {
+        existingAlbums = readAlbumsFromFile();
+      } catch (readError) {
+        console.error('Failed to read albums file:', readError);
+        return NextResponse.json(
+          { error: 'Failed to read albums data' },
+          { status: 500 }
+        );
+      }
+
       if (existingAlbums.some((album: Album) => album.id === albumData.id)) {
         return NextResponse.json(
           { error: 'Album already exists' },
@@ -51,11 +70,20 @@ export const POST = withRateLimit(
       };
 
       const updatedAlbums = [...existingAlbums, newAlbum];
-      writeAlbumsToFile(updatedAlbums);
+
+      try {
+        writeAlbumsToFile(updatedAlbums);
+      } catch (writeError) {
+        console.error('Failed to write albums file:', writeError);
+        return NextResponse.json(
+          { error: 'Failed to save album data' },
+          { status: 500 }
+        );
+      }
 
       // Broadcast update via WebSocket
       if (global.sendWebSocketUpdate) {
-        global.sendWebSocketUpdate({ type: 'albums', payload: updatedAlbums });
+        global.sendWebSocketUpdate({ type: 'albums', albums: updatedAlbums });
       }
 
       console.log(`✅ Added album "${newAlbum.name}" by ${newAlbum.artist}`);
@@ -109,7 +137,7 @@ export const PUT = withRateLimit(
 
       // Broadcast update via WebSocket
       if (global.sendWebSocketUpdate) {
-        global.sendWebSocketUpdate({ type: 'albums', payload: existingAlbums });
+        global.sendWebSocketUpdate({ type: 'albums', albums: existingAlbums });
       }
 
       console.log(`✅ Updated album "${updatedAlbum.name}"`);
@@ -158,10 +186,10 @@ export const DELETE = withAdminAuth(async (request: NextRequest) => {
       .map((album: Album, index: number) => ({ ...album, position: index }));
     writeAlbumsToFile(updatedAlbums);
 
-    // Broadcast update via WebSocket
-    if (global.sendWebSocketUpdate) {
-      global.sendWebSocketUpdate({ type: 'albums', payload: updatedAlbums });
-    }
+      // Broadcast update via WebSocket
+      if (global.sendWebSocketUpdate) {
+        global.sendWebSocketUpdate({ type: 'albums', albums: updatedAlbums });
+      }
 
     console.log(`✅ Deleted album "${albumToDelete.name}"`);
 

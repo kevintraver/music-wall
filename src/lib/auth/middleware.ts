@@ -21,12 +21,14 @@ export function withAuth<T extends any[]>(
 
       // Add token to request headers for use in handlers
       const requestWithAuth = new NextRequest(request.url, {
-        ...request,
+        method: request.method,
         headers: new Headers({
           ...Object.fromEntries(request.headers.entries()),
           'x-spotify-access-token': effectiveAccessToken,
         }),
-      });
+        body: request.body,
+        duplex: 'half',
+      } as any);
 
       return handler(requestWithAuth, ...(args as T));
     } catch (error) {
@@ -59,12 +61,14 @@ export function withOptionalAuth(handler: (request: NextRequest) => Promise<Next
       const effective = headerAccess || clientAccess || '';
 
       const requestWithAuth = new NextRequest(request.url, {
-        ...request,
+        method: request.method,
         headers: new Headers({
           ...Object.fromEntries(request.headers.entries()),
           ...(effective && { 'x-spotify-access-token': effective }),
         }),
-      });
+        body: request.body,
+        duplex: 'half',
+      } as any);
 
       return handler(requestWithAuth);
     } catch (error) {
@@ -135,7 +139,7 @@ async function refreshAccessToken(refreshToken: string): Promise<{
   refreshToken?: string;
 }> {
   try {
-    const { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET } = await import('@/lib/utils/env');
+    const { SPOTIFY_CLIENT_ID } = await import('@/lib/utils/env');
 
     const response = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',

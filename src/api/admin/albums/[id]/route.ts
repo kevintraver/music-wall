@@ -58,7 +58,7 @@ export const PUT = withRateLimit(
 
       // Broadcast update via WebSocket
       if (global.sendWebSocketUpdate) {
-        global.sendWebSocketUpdate({ type: 'albums', payload: existingAlbums });
+        global.sendWebSocketUpdate({ type: 'albums', albums: existingAlbums });
       }
 
       console.log(`✅ Updated album "${updatedAlbum.name}"`);
@@ -100,10 +100,10 @@ export const DELETE = withAdminAuth(async (
       .map((album: Album, index: number) => ({ ...album, position: index }));
     writeAlbumsToFile(updatedAlbums);
 
-    // Broadcast update via WebSocket
-    if (global.sendWebSocketUpdate) {
-      global.sendWebSocketUpdate({ type: 'albums', payload: updatedAlbums });
-    }
+      // Broadcast update via WebSocket
+      if (global.sendWebSocketUpdate) {
+        global.sendWebSocketUpdate({ type: 'albums', albums: updatedAlbums });
+      }
 
     console.log(`✅ Deleted album "${albumToDelete.name}"`);
 

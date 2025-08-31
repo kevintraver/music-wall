@@ -12,16 +12,25 @@ function ensureDataDir() {
 
 export function readAlbumsFromFile(): Album[] {
   try {
+    let data: any;
     if (fs.existsSync(ALBUMS_FILE)) {
-      return JSON.parse(fs.readFileSync(ALBUMS_FILE, 'utf8')) as Album[];
+      data = JSON.parse(fs.readFileSync(ALBUMS_FILE, 'utf8'));
+    } else if (fs.existsSync(DEFAULT_FILE)) {
+      data = JSON.parse(fs.readFileSync(DEFAULT_FILE, 'utf8'));
+    } else {
+      return [];
     }
-    if (fs.existsSync(DEFAULT_FILE)) {
-      return JSON.parse(fs.readFileSync(DEFAULT_FILE, 'utf8')) as Album[];
+
+    if (Array.isArray(data)) {
+      return data as Album[];
+    } else {
+      console.warn('Albums file contains invalid data (not an array), returning empty array');
+      return [];
     }
   } catch (e) {
     console.warn('Failed to read albums file:', e);
+    return [];
   }
-  return [];
 }
 
 export function writeAlbumsToFile(albums: Album[]): void {
