@@ -166,8 +166,9 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
             >
               <button
                 onClick={() => onRemove(album.id)}
-                className="absolute top-2 right-2 w-6 h-6 bg-red-600 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-xs z-10"
+                className="absolute top-2 right-2 w-6 h-6 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center opacity-70 hover:opacity-100 transition-all text-xs z-10 shadow-lg"
                 type="button"
+                title="Remove album"
               >
                 ×
               </button>
