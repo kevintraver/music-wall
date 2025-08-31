@@ -683,27 +683,27 @@ export default function AdminPage() {
                 {nowPlaying?.artist || ''}
               </div>
               <div className="flex items-center gap-4">
-                <button
-                  onClick={() => handlePlaybackAction('previous', '/api/playback/playback/previous')}
-                  disabled={!!playbackActionInProgress}
-                  className="w-9 h-9 bg-gray-700 border border-gray-600 rounded-full flex items-center justify-center hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  ⟵
-                </button>
-                <button
-                  onClick={() => handlePlaybackAction(isPlaying ? 'pause' : 'play', `/api/playback/playback/${isPlaying ? 'pause' : 'play'}`)}
-                  disabled={!!playbackActionInProgress}
-                  className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  {isPlaying ? '⏸' : '▶'}
-                </button>
-                <button
-                  onClick={() => handlePlaybackAction('next', '/api/playback/playback/next')}
-                  disabled={!!playbackActionInProgress}
-                  className="w-9 h-9 bg-gray-700 border border-gray-600 rounded-full flex items-center justify-center hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  ⟶
-                </button>
+                 <button
+                   onClick={() => handlePlaybackAction('previous', '/api/playback/playback/previous')}
+                   disabled={!!playbackActionInProgress}
+                   className="w-9 h-9 bg-gray-700 border border-gray-600 rounded-full flex items-center justify-center hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                 >
+                   <span className="material-icons text-lg">skip_previous</span>
+                 </button>
+                 <button
+                   onClick={() => handlePlaybackAction(isPlaying ? 'pause' : 'play', `/api/playback/playback/${isPlaying ? 'pause' : 'play'}`)}
+                   disabled={!!playbackActionInProgress}
+                   className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                 >
+                   <span className="material-icons text-xl">{isPlaying ? 'pause' : 'play_arrow'}</span>
+                 </button>
+                 <button
+                   onClick={() => handlePlaybackAction('next', '/api/playback/playback/next')}
+                   disabled={!!playbackActionInProgress}
+                   className="w-9 h-9 bg-gray-700 border border-gray-600 rounded-full flex items-center justify-center hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                 >
+                   <span className="material-icons text-lg">skip_next</span>
+                 </button>
               </div>
             </div>
           </div>
@@ -765,14 +765,14 @@ export default function AdminPage() {
                              {track.artist}
                            </div>
                          </div>
-                         <button
-                           onClick={() => handlePlaybackAction('next', '/api/playback/playback/next')}
-                           disabled={!!playbackActionInProgress}
-                           className="w-8 h-8 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500/10 opacity-0 hover:opacity-100 transition-opacity disabled:opacity-50"
-                           title="Skip this track"
-                         >
-                           🗑️
-                         </button>
+                          <button
+                            onClick={() => handlePlaybackAction('next', '/api/playback/playback/next')}
+                            disabled={!!playbackActionInProgress}
+                            className="w-8 h-8 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500/10 opacity-0 hover:opacity-100 transition-opacity disabled:opacity-50"
+                            title="Skip this track"
+                          >
+                            <span className="material-icons">remove_circle_outline</span>
+                          </button>
                        </div>
                      ))
                   ) : (
