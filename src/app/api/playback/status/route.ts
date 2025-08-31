@@ -42,8 +42,16 @@ if (accessToken) {
 
 export async function GET(request: NextRequest) {
   const headerAccess = request.headers.get('x-spotify-access-token') || '';
+  const headerRefresh = request.headers.get('x-spotify-refresh-token') || '';
   if (headerAccess) {
     spotifyApi.setAccessToken(headerAccess);
+    // Sync tokens to WebSocket server for polling
+    if (global.setSpotifyTokens) {
+      global.setSpotifyTokens({ 
+        accessToken: headerAccess, 
+        refreshToken: headerRefresh 
+      });
+    }
   } else if (!accessToken) {
     return NextResponse.json({ error: 'Admin not authenticated with Spotify' }, { status: 401 });
   }

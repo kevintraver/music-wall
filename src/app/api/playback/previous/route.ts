@@ -4,7 +4,7 @@ import path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI } from '@/lib/env';
 
-const TOKEN_FILE = path.join(process.cwd(), 'data', 'spotify-tokens.json');
+const TOKEN_FILE = path.join(process.cwd(), '.tokens', 'spotify-tokens.json');
 
 // OAuth variables
 let accessToken = '';
@@ -57,8 +57,16 @@ function isThrottled(action: string) {
 
 export async function POST(request: NextRequest) {
   const headerAccess = request.headers.get('x-spotify-access-token') || '';
+  const headerRefresh = request.headers.get('x-spotify-refresh-token') || '';
   if (headerAccess) {
     spotifyApi.setAccessToken(headerAccess);
+    // Sync tokens to WebSocket server for polling
+    if (global.setSpotifyTokens) {
+      global.setSpotifyTokens({ 
+        accessToken: headerAccess, 
+        refreshToken: headerRefresh 
+      });
+    }
   } else if (!accessToken) {
     return NextResponse.json({ error: 'Admin not authenticated with Spotify' }, { status: 401 });
   }
