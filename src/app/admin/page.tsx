@@ -743,23 +743,33 @@ export default function AdminPage() {
               <div className="flex-1 overflow-y-auto pr-2">
                 <div className="space-y-3">
                   {upNext.length > 0 ? (
-                    upNext.map((track, index) => (
-                      <div key={index} className="flex items-center p-3 bg-gray-700 rounded-lg">
-                        <div className="w-6 h-6 text-gray-400 mr-3">☰</div>
-                        <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded mr-3"></div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis">
-                            {track.name}
-                          </div>
-                          <div className="text-xs text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
-                            {track.artist}
-                          </div>
-                        </div>
-                        <button className="w-8 h-8 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500/10 opacity-0 hover:opacity-100 transition-opacity">
-                          ⊖
-                        </button>
-                      </div>
-                    ))
+                     upNext.map((track, index) => (
+                       <div key={index} className="flex items-center p-3 bg-gray-700 rounded-lg">
+                         <div className="w-6 h-6 text-gray-400 mr-3">☰</div>
+                         <div className="w-10 h-10 bg-gray-700 rounded mr-3 flex-shrink-0 overflow-hidden">
+                           {track.image ? (
+                             <img
+                               src={track.image}
+                               alt="Album cover"
+                               className="w-full h-full object-cover"
+                             />
+                           ) : (
+                             <div className="w-full h-full bg-gradient-to-br from-emerald-400 to-emerald-600"></div>
+                           )}
+                         </div>
+                         <div className="flex-1 min-w-0">
+                           <div className="text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis">
+                             {track.name}
+                           </div>
+                           <div className="text-xs text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
+                             {track.artist}
+                           </div>
+                         </div>
+                         <button className="w-8 h-8 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500/10 opacity-0 hover:opacity-100 transition-opacity">
+                           ⊖
+                         </button>
+                       </div>
+                     ))
                   ) : (
                     <div className="text-gray-400 text-center py-8">Queue is empty</div>
                   )}
