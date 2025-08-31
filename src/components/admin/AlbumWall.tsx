@@ -48,7 +48,7 @@ export default function AlbumWall({ albums, albumsLoading, onRemove }: Props) {
                   onClick={() => onRemove(album.id)}
                   className="absolute top-2 right-2 w-8 h-8 bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"
                 >
-                  ×
+                  <span className="material-icons text-sm">delete</span>
                 </button>
               </div>
                <div className="text-center px-1 py-2 opacity-100">
