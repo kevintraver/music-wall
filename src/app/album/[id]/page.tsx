@@ -238,7 +238,7 @@ export default function AlbumPage() {
       };
 
       ws.onclose = () => {
-        console.log('Album WebSocket disconnected, attempting reconnection...');
+        logger.websocket('Album WebSocket disconnected, attempting reconnection...');
         if (heartbeatInterval) {
           clearInterval(heartbeatInterval);
           heartbeatInterval = null;

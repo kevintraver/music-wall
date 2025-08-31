@@ -52,6 +52,7 @@ export default function AdminPage() {
   const [queueLoaded, setQueueLoaded] = useState(false);
 
    const [playbackActionInProgress, setPlaybackActionInProgress] = useState<string | null>(null);
+   const [lastApiCall, setLastApiCall] = useState<number>(0);
   const [wsConnected, setWsConnected] = useState(false);
   const [showWsTooltip, setShowWsTooltip] = useState(false);
   const [isTooltipHovered, setIsTooltipHovered] = useState(false);

@@ -1,4 +1,12 @@
 // Logging utility with verbose mode support
+//
+// To enable verbose logging, set the environment variable:
+// VERBOSE_LOGGING=true npm run dev
+//
+// Or in development mode, verbose logging is automatically enabled.
+//
+// By default, only error logs are shown to keep the console clean.
+
 const VERBOSE_LOGGING = process.env.VERBOSE_LOGGING === 'true' || process.env.NODE_ENV === 'development';
 
 export const logger = {
