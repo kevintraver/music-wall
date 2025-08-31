@@ -129,6 +129,9 @@ export default function AdminPage() {
         setPlaybackLoaded(true);
         setQueueLoaded(true);
 
+        // Request fresh snapshot on connect
+        try { ws?.send(JSON.stringify({ type: 'refresh' })); } catch {}
+
         // Start heartbeat
         heartbeatInterval = setInterval(() => {
           if (ws && ws.readyState === WebSocket.OPEN) {

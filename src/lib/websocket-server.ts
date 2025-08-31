@@ -200,6 +200,7 @@ export function startWebSocketServer() {
       refreshToken = rt;
     }
     try { saveTokens(); } catch {}
+    console.log('🔄 WS tokens updated via callback', { hasAccess: !!accessToken, hasRefresh: !!refreshToken });
     // Trigger an immediate broadcast to reflect new auth
     fetchAndBroadcast().catch(() => {/* ignore */});
   };
@@ -346,6 +347,19 @@ function getRetryAfterDelay(error: any) {
         isPlayingNP: (nowPlayingRes.body as any)?.is_playing ?? null,
         isPlayingState: (playbackStateRes.body as any)?.is_playing ?? null,
       });
+      try {
+        const device = (playbackStateRes.body as any)?.device;
+        if (device) {
+          console.log('🎧 Active device', {
+            name: device.name,
+            type: device.type,
+            is_active: device.is_active,
+            volume_percent: device.volume_percent,
+          });
+        } else {
+          console.log('🎧 No active device reported in playback state');
+        }
+      } catch {}
 
       recordEndpointCall('getMyCurrentPlayingTrack');
       recordEndpointCall('getMyCurrentPlaybackState');
@@ -375,7 +389,14 @@ function getRetryAfterDelay(error: any) {
       });
       sendUpdate(update);
     } catch (error: any) {
-      console.error('❌ Error polling Spotify for WS:', error);
+      console.error('❌ Error polling Spotify for WS:', {
+        message: error?.message,
+        statusCode: error?.statusCode,
+        body: error?.body,
+      });
+      if (error?.statusCode === 401 || error?.statusCode === 403) {
+        console.warn('🔐 Spotify token may be invalid or expired. Consider re-authenticating.');
+      }
       consecutiveErrors++;
       recordCircuitBreakerResult(false);
 

@@ -79,6 +79,8 @@ export default function Home() {
         console.log('WebSocket connected');
         reconnectAttempts = 0;
         setPlaybackLoaded(true);
+        // Request fresh snapshot on connect
+        try { ws?.send(JSON.stringify({ type: 'refresh' })); } catch {}
         // Allow UI to render while waiting for first snapshot
         setQueueLoaded(true);
 
