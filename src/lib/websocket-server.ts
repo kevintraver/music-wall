@@ -7,6 +7,7 @@ import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI } from '
 // Declare global type for WebSocket update function
 declare global {
   var sendWebSocketUpdate: (data: any) => void;
+  var setSpotifyTokens: (tokens: { accessToken?: string; refreshToken?: string }) => void;
 }
 
 const TOKEN_FILE = path.join(process.cwd(), 'data', 'spotify-tokens.json');
@@ -162,6 +163,20 @@ export function startWebSocketServer() {
 
   // Export sendUpdate function for use in API routes
   global.sendWebSocketUpdate = sendUpdate;
+
+  // Allow other parts of the app to update tokens at runtime
+  global.setSpotifyTokens = ({ accessToken: at, refreshToken: rt }) => {
+    if (at) {
+      accessToken = at;
+      spotifyApi.setAccessToken(accessToken);
+    }
+    if (rt) {
+      refreshToken = rt;
+    }
+    try { saveTokens(); } catch {}
+    // Trigger an immediate broadcast to reflect new auth
+    fetchAndBroadcast().catch(() => {/* ignore */});
+  };
 
 // Rate limiting and circuit breaker for polling
 let lastApiCall = 0;
