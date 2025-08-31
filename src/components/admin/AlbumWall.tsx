@@ -134,8 +134,7 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
         albums={[...uniqueAlbums].sort((a, b) => a.position - b.position)}
         albumsLoading={albumsLoading}
         centerText={true}
-      >
-        {(album, index) => {
+        renderOverlayAction={(album, index) => {
           const isDraggedItem = draggedAlbum?.id === album.id;
           const isDropTarget = dragOverIndex === index;
           const shouldShift =
@@ -168,6 +167,7 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
               <button
                 onClick={() => onRemove(album.id)}
                 className="absolute top-2 right-2 w-6 h-6 bg-red-600 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-xs z-10"
+                type="button"
               >
                 ×
               </button>
