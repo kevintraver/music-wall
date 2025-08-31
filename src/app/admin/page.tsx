@@ -153,7 +153,7 @@ export default function AdminPage() {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('Admin WebSocket connected');
+        logger.websocket('Admin WebSocket connected');
         setWsConnected(true);
         reconnectAttempts = 0;
         // UI can render while snapshot arrives
@@ -205,7 +205,7 @@ export default function AdminPage() {
              }
 
              if (albumsData) {
-               console.log('💿 Albums-only update:', albumsData.length, 'albums');
+               logger.info('Albums-only update:', albumsData.length, 'albums');
                const albumsChanged = JSON.stringify(albumsData) !== JSON.stringify(albums);
                if (albumsChanged) {
                  setAlbums(albumsData);
@@ -281,7 +281,7 @@ export default function AdminPage() {
       };
 
       ws.onclose = () => {
-        console.log('Admin WebSocket disconnected, attempting reconnection...');
+        logger.websocket('Admin WebSocket disconnected, attempting reconnection...');
         setWsConnected(false);
         wsRef.current = null;
         if (heartbeatInterval) {
@@ -398,7 +398,7 @@ export default function AdminPage() {
       }
 
       const result = await response.json();
-      console.log('✅ Album added successfully:', result);
+      logger.success('Album added successfully:', result);
 
       // The WebSocket will handle the real update, so we don't need to do anything else
 
@@ -454,7 +454,7 @@ export default function AdminPage() {
       }
 
       const result = await response.json();
-      console.log('✅ Album removed successfully:', result);
+      logger.success('Album removed successfully:', result);
 
       // The WebSocket will handle the real update, so we don't need to do anything else
 
@@ -502,7 +502,7 @@ export default function AdminPage() {
           throw new Error(`Playback ${action} failed`);
         }
 
-        console.log(`✅ Playback ${action} successful`);
+        logger.success(`Playback ${action} successful`);
 
       } catch (error) {
         console.error(`❌ Error ${action}:`, error);

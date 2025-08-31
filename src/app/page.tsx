@@ -29,14 +29,28 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    albums.forEach(album => {
+    // Only fetch QR codes for albums that don't already have them
+    const albumsNeedingQrs = albums.filter(album => !qrs[album.id]);
+
+    albumsNeedingQrs.forEach(album => {
       fetch(`/api/qr/${album.id}`)
-        .then(res => res.json())
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`Failed to fetch QR for album ${album.id}`);
+          }
+          return res.json();
+        })
         .then(data => {
-          setQrs(prev => ({ ...prev, [album.id]: data.qr }));
+          if (data.qr) {
+            setQrs(prev => ({ ...prev, [album.id]: data.qr }));
+          }
+        })
+        .catch(error => {
+          console.warn(`Failed to fetch QR for album ${album.id}:`, error.message);
+          // Set a placeholder or retry logic could go here
         });
     });
-  }, [albums]);
+  }, [albums, qrs]);
 
 
 

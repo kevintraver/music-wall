@@ -78,9 +78,7 @@ function NowPlayingPanelImpl({
                         onAction(isPlaying ? "pause" : "play", `/api/playback/playback/${isPlaying ? "pause" : "play"}`);
                       }}
                       disabled={!!playbackActionInProgress}
-                      className={`text-white w-16 h-16 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed ${
-                        isPlaying ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'
-                      }`}
+                      className="bg-green-500 text-white w-16 h-16 rounded-full hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-green-500 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <span className="material-icons text-4xl">{isPlaying ? "pause" : "play_arrow"}</span>
                     </button>
