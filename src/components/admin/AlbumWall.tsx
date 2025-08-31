@@ -22,6 +22,7 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
   const [draggedAlbum, setDraggedAlbum] = useState<Album | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
 
   // Ensure unique albums by id to avoid React key warnings when duplicates slip in
   const uniqueAlbums = useMemo(() => {
@@ -34,8 +35,22 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
     e.stopPropagation();
     setDraggedAlbum(album);
     setDraggedIndex(index);
+    setDragPosition({ x: e.clientX, y: e.clientY });
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", album.id);
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (draggedAlbum) {
+      setDragPosition({ x: e.clientX, y: e.clientY });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setDraggedAlbum(null);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+    setDragPosition(null);
   };
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
@@ -91,7 +106,20 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
     setDraggedAlbum(null);
     setDraggedIndex(null);
     setDragOverIndex(null);
+    setDragPosition(null);
   };
+
+  // Add mouse event listeners during drag
+  React.useEffect(() => {
+    if (draggedAlbum) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [draggedAlbum]);
 
   return (
     <div
@@ -146,6 +174,26 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
           );
         }}
       </AlbumGrid>
+
+      {/* Drag follower - shows dragged album following mouse */}
+      {draggedAlbum && dragPosition && (
+        <div
+          className="fixed pointer-events-none z-50 opacity-80 scale-95"
+          style={{
+            left: dragPosition.x - 60, // Center the 120px wide element on cursor
+            top: dragPosition.y - 60,  // Center the 120px tall element on cursor
+            transform: 'rotate(5deg)', // Slight rotation for visual feedback
+          }}
+        >
+          <div className="w-30 h-30 bg-gray-800 rounded-lg p-2 shadow-2xl border-2 border-blue-500">
+            <img
+              src={draggedAlbum.image}
+              alt={`${draggedAlbum.name} album cover`}
+              className="w-full h-full object-cover rounded"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
