@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAdminAuth, withRateLimit } from '@/lib/auth/middleware';
 import SpotifyWebApi from 'spotify-web-api-node';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI } from '@/lib/utils/env';
+import { logger } from '@/lib/utils/logger';
 
 // Spotify API setup
 const spotifyApi = new SpotifyWebApi({
@@ -75,7 +76,7 @@ export const POST = withRateLimit(
         });
       }
 
-      console.log(`▶️  Playback started on device: ${activeDevice.name}`);
+      logger.playback(`Playback started on device: ${activeDevice.name}`);
 
       return NextResponse.json({
         success: true,

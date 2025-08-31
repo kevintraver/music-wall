@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withOptionalAuth, withRateLimit } from '@/lib/auth/middleware';
 import SpotifyWebApi from 'spotify-web-api-node';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET } from '@/lib/utils/env';
+import { logger } from '@/lib/utils/logger';
 
 // Spotify API setup
 const spotifyApiClient = new SpotifyWebApi({
@@ -9,14 +10,26 @@ const spotifyApiClient = new SpotifyWebApi({
   clientSecret: SPOTIFY_CLIENT_SECRET
 });
 
-// Authenticate with Spotify
+// Token management
+let tokenExpiry: number | null = null;
+
 async function authenticateSpotify() {
   try {
     const data = await spotifyApiClient.clientCredentialsGrant();
     spotifyApiClient.setAccessToken(data.body['access_token']);
-    console.log('Spotify client authenticated successfully');
+    // Token expires in 1 hour (3600 seconds), but we'll refresh 5 minutes early to be safe
+    tokenExpiry = Date.now() + (data.body['expires_in'] - 300) * 1000;
+    logger.api('Spotify client authenticated successfully, token expires at:', new Date(tokenExpiry));
   } catch (error) {
     console.error('Spotify client authentication failed:', error);
+    tokenExpiry = null;
+  }
+}
+
+async function ensureValidToken() {
+  if (!tokenExpiry || Date.now() >= tokenExpiry) {
+    console.log('Spotify token expired or missing, refreshing...');
+    await authenticateSpotify();
   }
 }
 
@@ -106,6 +119,9 @@ export const GET = withRateLimit(
         return NextResponse.json([]);
       }
 
+      // Ensure we have a valid token before making the API call
+      await ensureValidToken();
+
       const data = await spotifyApiClient.searchAlbums(query, { limit: 10, market: 'US' });
       const results = data.body.albums?.items?.map((album: any) => ({
         id: album.id,
@@ -124,6 +140,8 @@ export const GET = withRateLimit(
         if (shouldRetry) {
           // Retry the search operation
           try {
+            // Ensure we have a valid token before retrying
+            await ensureValidToken();
             const data = await spotifyApiClient.searchAlbums(query, { limit: 10, market: 'US' });
             const results = data.body.albums?.items?.map((album: any) => ({
               id: album.id,

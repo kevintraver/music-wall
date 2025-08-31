@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAdminAuth, withRateLimit } from '@/lib/auth/middleware';
 import { readAlbumsFromFile, writeAlbumsToFile } from '@/lib/utils/albums-file';
 import { Album } from '@/websocket/types';
+import { logger } from '@/lib/utils/logger';
 
 // GET /api/admin/albums/[id] - Get single album
 export const GET = withAdminAuth(async (
@@ -61,7 +62,7 @@ export const PUT = withRateLimit(
         global.sendWebSocketUpdate({ type: 'albums', albums: existingAlbums });
       }
 
-      console.log(`✅ Updated album "${updatedAlbum.name}"`);
+      logger.success(`Updated album "${updatedAlbum.name}"`);
 
       return NextResponse.json({
         success: true,
@@ -105,7 +106,7 @@ export const DELETE = withAdminAuth(async (
         global.sendWebSocketUpdate({ type: 'albums', albums: updatedAlbums });
       }
 
-    console.log(`✅ Deleted album "${albumToDelete.name}"`);
+    logger.success(`Deleted album "${albumToDelete.name}"`);
 
     return NextResponse.json({
       success: true,
