@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import AlbumGrid from "@/components/shared/AlbumGrid";
 
-interface Album {
+export interface Album {
   id: string;
   name: string;
   artist: string;
@@ -21,8 +22,6 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
   const [draggedAlbum, setDraggedAlbum] = useState<Album | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-
-
 
   // Ensure unique albums by id to avoid React key warnings when duplicates slip in
   const uniqueAlbums = useMemo(() => {
@@ -95,71 +94,58 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
   };
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-x-6 gap-y-8">
-      {albumsLoading ? (
-        Array.from({ length: 14 }).map((_, i) => (
-          <div key={i} className="flex flex-col items-start space-y-2">
-            <div className="w-full aspect-square bg-gray-700 rounded-md" />
-            <div className="text-left w-full">
-              <div className="h-4 bg-gray-700 rounded mb-1" />
-              <div className="h-3 bg-gray-600 rounded" />
-            </div>
-          </div>
-        ))
-      ) : (
-        [...uniqueAlbums]
-          .sort((a, b) => a.position - b.position)
-          .map((album, index) => {
-            const isDraggedItem = draggedAlbum?.id === album.id;
-            const isDropTarget = dragOverIndex === index;
-            const shouldShift =
-              dragOverIndex !== null &&
-              draggedIndex !== null &&
-              ((index > draggedIndex && index <= dragOverIndex) ||
-                (index < draggedIndex && index >= dragOverIndex));
+    <div
+      onDragOver={(e) => {
+        if (draggedAlbum) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
+    >
+      <AlbumGrid
+        albums={[...uniqueAlbums].sort((a, b) => a.position - b.position)}
+        albumsLoading={albumsLoading}
+      >
+        {(album, index) => {
+          const isDraggedItem = draggedAlbum?.id === album.id;
+          const isDropTarget = dragOverIndex === index;
+          const shouldShift =
+            dragOverIndex !== null &&
+            draggedIndex !== null &&
+            ((index > draggedIndex && index <= dragOverIndex) ||
+              (index < draggedIndex && index >= dragOverIndex));
 
-            return (
-              <div
-                key={album.id}
-                draggable={!isDraggedItem}
-                onDragStart={(e) => handleDragStart(e, album, index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, index)}
-                onDragEnd={handleDragEnd}
-                className={`flex flex-col items-start space-y-2 cursor-move transition-all duration-200 select-none ${
-                  isDraggedItem ? "opacity-50 scale-95" : ""
-                } ${isDropTarget ? "ring-2 ring-blue-500" : ""} ${
-                  shouldShift ? "transform translate-x-2" : ""
-                }`}
-                style={{
-                  transform: shouldShift ? "translateX(8px)" : "translateX(0px)",
-                  transition: "transform 0.2s ease",
-                  userSelect: "none",
-                  WebkitUserSelect: "none",
-                }}
+          return (
+            <div
+              key={`admin-${album.id}`}
+              draggable={!isDraggedItem}
+              onDragStart={(e) => handleDragStart(e, album, index)}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, index)}
+              onDragEnd={handleDragEnd}
+              className={`absolute inset-0 cursor-move transition-all duration-200 select-none rounded-lg ${
+                isDraggedItem ? "opacity-50 scale-95" : ""
+              } ${isDropTarget ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-gray-800" : ""} ${
+                shouldShift ? "transform translate-x-2" : ""
+              }`}
+              style={{
+                transform: shouldShift ? "translateX(8px)" : "translateX(0px)",
+                transition: "transform 0.2s ease",
+                userSelect: "none",
+                WebkitUserSelect: "none",
+              }}
+            >
+              <button
+                onClick={() => onRemove(album.id)}
+                className="absolute top-2 right-2 w-6 h-6 bg-red-600 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-xs z-10"
               >
-                <div className="relative w-full aspect-square rounded-md overflow-hidden">
-                  <img
-                    src={album.image}
-                    alt={`Album cover for ${album.name}`}
-                    className="w-full aspect-square object-cover rounded-md"
-                  />
-                  <button
-                    onClick={() => onRemove(album.id)}
-                    className="absolute top-2 right-2 w-6 h-6 bg-red-600 rounded-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-xs"
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="text-left w-full">
-                  <p className="font-semibold text-white text-sm leading-tight">{album.name}</p>
-                  <p className="text-sm text-gray-400 leading-tight">{album.artist}</p>
-                </div>
-              </div>
-            );
-          })
-      )}
+                ×
+              </button>
+            </div>
+          );
+        }}
+      </AlbumGrid>
     </div>
   );
 }
