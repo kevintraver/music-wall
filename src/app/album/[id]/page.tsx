@@ -201,25 +201,25 @@ export default function AlbumPage() {
             case 'playback':
               // Playback state update - could be useful for showing current track
               if (data.payload && data.payload.nowPlaying) {
-                console.log('🎵 Now playing:', data.payload.nowPlaying.name);
+                logger.playback('Now playing:', data.payload.nowPlaying.name);
                 // Could add now playing display here if needed
               }
               break;
 
              case 'albums':
                // Album updates - might affect the current album
-               console.log('💿 Albums updated');
+               logger.info('Albums updated');
                // Check if current album still exists or position changed
                if (Array.isArray(data.payload)) {
                  const currentAlbum = data.payload.find((album: any) => album.id === albumId);
                  if (!currentAlbum) {
-                   console.log('Current album no longer exists, redirecting...');
+                   logger.info('Current album no longer exists, redirecting...');
                    router.push('/');
                  }
                } else if (Array.isArray(data.albums)) {
                  const currentAlbum = data.albums.find((album: any) => album.id === albumId);
                  if (!currentAlbum) {
-                   console.log('Current album no longer exists, redirecting...');
+                   logger.info('Current album no longer exists, redirecting...');
                    router.push('/');
                  }
                }

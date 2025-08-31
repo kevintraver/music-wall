@@ -58,7 +58,11 @@ function NowPlayingPanelImpl({
                       type="button"
                       aria-label="Previous"
                       onClick={(e) => {
-                        if (playbackActionInProgress) return;
+                        if (playbackActionInProgress) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          return;
+                        }
                         e.preventDefault();
                         e.stopPropagation();
                         onAction("previous", "/api/playback/playback/previous");
@@ -72,7 +76,11 @@ function NowPlayingPanelImpl({
                       type="button"
                       aria-label={isPlaying ? "Pause" : "Play"}
                       onClick={(e) => {
-                        if (playbackActionInProgress) return;
+                        if (playbackActionInProgress) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          return;
+                        }
                         e.preventDefault();
                         e.stopPropagation();
                         onAction(isPlaying ? "pause" : "play", `/api/playback/playback/${isPlaying ? "pause" : "play"}`);
@@ -86,7 +94,11 @@ function NowPlayingPanelImpl({
                       type="button"
                       aria-label="Next"
                       onClick={(e) => {
-                        if (playbackActionInProgress) return;
+                        if (playbackActionInProgress) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          return;
+                        }
                         e.preventDefault();
                         e.stopPropagation();
                         onAction("next", "/api/playback/playback/next");

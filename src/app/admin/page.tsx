@@ -351,7 +351,7 @@ export default function AdminPage() {
       debounceRef.current = window.setTimeout(() => {
         setIsDebouncing(false);
         performSearch(searchQuery);
-      }, 300);
+      }, 500);
     } else {
       setIsDebouncing(false);
       setSearchResults([]);
