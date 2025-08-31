@@ -513,10 +513,7 @@ export default function AdminPage() {
       setPlaybackUpdatePending(true);
     }
 
-    // Optimistically update UI for play/pause
-    if (action === 'play' || action === 'pause') {
-      setIsPlaying(action === 'play');
-    }
+    // For play/pause, rely on WebSocket to reflect the true state from Spotify
 
     try {
       const { accessToken, refreshToken } = getTokens();
@@ -539,16 +536,12 @@ export default function AdminPage() {
           }
         }, 2000); // Fallback timeout
       } else {
-        // For pause/play, clear immediately since they're typically instant
+        // For pause/play, do not toggle isPlaying optimistically; wait for WS
         setPlaybackActionLoading(null);
         setPlaybackUpdatePending(false);
       }
     } catch (error) {
       console.error(`Error ${action}:`, error);
-      // Revert optimistic updates on error
-      if (action === 'play' || action === 'pause') {
-        setIsPlaying(action === 'pause'); // Revert to opposite
-      }
       setPlaybackActionLoading(null);
       setPlaybackUpdatePending(false);
     }
