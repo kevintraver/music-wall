@@ -53,10 +53,14 @@ export class WebSocketClientManager {
 
   broadcast(message: WSMessage, filter?: (client: WSClient) => boolean): void {
     const clientsToSend = filter ? this.getAllClients().filter(filter) : this.getAllClients();
+    console.log(`📡 Broadcasting ${message.type} to ${clientsToSend.length} clients`);
 
     clientsToSend.forEach(client => {
       if (client.ws.readyState === WebSocket.OPEN) {
+        console.log(`📡 Sending ${message.type} to client ${client.id}`);
         client.ws.send(JSON.stringify(message));
+      } else {
+        console.log(`📡 Client ${client.id} not ready (state: ${client.ws.readyState})`);
       }
     });
   }

@@ -100,7 +100,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       ws = new WebSocket(`ws://${window.location.hostname}:3002`);
 
       ws.onopen = () => {
-        console.log('WebSocket connected');
+        console.log('🔌 Main wall WebSocket connected to port 3002');
         reconnectAttempts = 0;
         dispatch({ type: 'SET_LOADING', payload: { key: 'playback', value: false } });
         dispatch({ type: 'SET_LOADING', payload: { key: 'queue', value: false } });
@@ -109,6 +109,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('📨 Main wall received WebSocket message:', data.type);
 
           switch (data.type) {
              case 'albums':
@@ -118,19 +119,24 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
                  dispatch({ type: 'SET_ALBUMS', payload: data.albums });
                }
                break;
-            case 'playback':
-              if (data.payload) {
-                if (data.payload.nowPlaying !== undefined) {
-                  dispatch({ type: 'SET_NOW_PLAYING', payload: data.payload.nowPlaying });
-                }
-                if (data.payload.isPlaying !== undefined) {
-                  dispatch({ type: 'SET_IS_PLAYING', payload: data.payload.isPlaying });
-                }
-                if (data.payload.queue !== undefined) {
-                  dispatch({ type: 'SET_QUEUE', payload: data.payload.queue });
-                }
-              }
-              break;
+             case 'playback':
+               console.log('🎵 Main wall received playback update:', {
+                 hasTrack: !!(data.payload?.nowPlaying),
+                 trackName: data.payload?.nowPlaying?.name || 'None',
+                 isPlaying: data.payload?.isPlaying
+               });
+               if (data.payload) {
+                 if (data.payload.nowPlaying !== undefined) {
+                   dispatch({ type: 'SET_NOW_PLAYING', payload: data.payload.nowPlaying });
+                 }
+                 if (data.payload.isPlaying !== undefined) {
+                   dispatch({ type: 'SET_IS_PLAYING', payload: data.payload.isPlaying });
+                 }
+                 if (data.payload.queue !== undefined) {
+                   dispatch({ type: 'SET_QUEUE', payload: data.payload.queue });
+                 }
+               }
+               break;
             case 'queue':
               if (Array.isArray(data.payload)) {
                 dispatch({ type: 'SET_QUEUE', payload: data.payload });

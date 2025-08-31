@@ -51,6 +51,7 @@ export default function AdminPage() {
   const [queueLoaded, setQueueLoaded] = useState(false);
 
    const [playbackActionInProgress, setPlaybackActionInProgress] = useState<string | null>(null);
+   const [lastPlaybackAction, setLastPlaybackAction] = useState<{ action: string; timestamp: number } | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [showWsTooltip, setShowWsTooltip] = useState(false);
   const [isTooltipHovered, setIsTooltipHovered] = useState(false);
@@ -361,6 +362,17 @@ export default function AdminPage() {
     };
   }, [searchQuery]);
 
+  // Clean up lastPlaybackAction after debounce period
+  useEffect(() => {
+    if (lastPlaybackAction) {
+      const timeout = setTimeout(() => {
+        setLastPlaybackAction(null);
+      }, 300); // Clear after debounce period
+
+      return () => clearTimeout(timeout);
+    }
+  }, [lastPlaybackAction]);
+
   const addAlbum = async (album: Album) => {
     setPendingAddId(album.id);
 
@@ -472,53 +484,76 @@ export default function AdminPage() {
     }
   };
 
-   const handlePlaybackAction = useCallback(async (action: string, endpoint: string) => {
-     // Prevent multiple simultaneous playback actions
-     if (playbackActionInProgress) {
-       console.log(`Playback action ${action} blocked - ${playbackActionInProgress} already in progress`);
-       return;
-     }
+    const handlePlaybackAction = useCallback(async (action: string, endpoint: string) => {
+      const now = Date.now();
 
-     // Set action in progress immediately
-     setPlaybackActionInProgress(action);
+      // Debounce: Prevent actions within 300ms of the last action
+      if (lastPlaybackAction && (now - lastPlaybackAction.timestamp) < 300) {
+        console.log(`Playback action ${action} debounced - too soon after ${lastPlaybackAction.action}`);
+        return;
+      }
 
-      // Don't show loading for pause/play actions (immediate feedback)
-     if (action !== 'pause' && action !== 'play') {
-       setPlaybackUpdatePending(true);
-     }
+      // Record this action for debouncing (but don't disable buttons)
+      setLastPlaybackAction({ action, timestamp: now });
 
-     // For play/pause, optimistically update the UI immediately
-     let originalIsPlaying = isPlaying;
-     if (action === 'play') {
-       setIsPlaying(true);
-     } else if (action === 'pause') {
-       setIsPlaying(false);
-     }
+      // Optimistically update the UI immediately for all actions
+      let originalIsPlaying = isPlaying;
+      let optimisticUpdate = false;
 
-     try {
-       const { accessToken, refreshToken } = getTokens();
-       const res = await fetch(endpoint, {
-         method: 'POST',
-         headers: {
-           'x-spotify-access-token': accessToken,
-           'x-spotify-refresh-token': refreshToken,
-         },
-       });
-       if (!res.ok) {
-         throw new Error(`Playback ${action} failed`);
-       }
-        // Clear pending state
-        setPlaybackUpdatePending(false);
+      if (action === 'play') {
+        setIsPlaying(true);
+        optimisticUpdate = true;
+      } else if (action === 'pause') {
+        setIsPlaying(false);
+        optimisticUpdate = true;
+      } else if (action === 'previous' || action === 'next') {
+        // For skip actions, show pending state briefly
+        setPlaybackUpdatePending(true);
+        optimisticUpdate = true;
+      }
+
+      try {
+        // Set action in progress only during the API call
+        setPlaybackActionInProgress(action);
+
+        const { accessToken, refreshToken } = getTokens();
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'x-spotify-access-token': accessToken,
+            'x-spotify-refresh-token': refreshToken,
+          },
+        });
+
+        if (!res.ok) {
+          throw new Error(`Playback ${action} failed`);
+        }
+
+        console.log(`✅ Playback ${action} successful`);
+
+        // Clear pending state after successful action
+        if (optimisticUpdate) {
+          setTimeout(() => {
+            setPlaybackUpdatePending(false);
+          }, 150); // Brief delay to show success
+        }
+
       } catch (error) {
-        console.error(`Error ${action}:`, error);
+        console.error(`❌ Error ${action}:`, error);
+
         // Revert optimistic update on error
-        setIsPlaying(originalIsPlaying);
-        setPlaybackUpdatePending(false);
+        if (optimisticUpdate) {
+          setIsPlaying(originalIsPlaying);
+          setPlaybackUpdatePending(false);
+        }
+
+        // Clear the last action on error to allow retries
+        setLastPlaybackAction(null);
       } finally {
-        // Always clear the in-progress state
+        // Clear the in-progress state after API call completes
         setPlaybackActionInProgress(null);
       }
-    }, [isPlaying, playbackActionInProgress]);
+    }, [isPlaying, lastPlaybackAction]);
 
   // Handle album reorder coming from AlbumWall
   const handleReorder = async (updatedAlbums: Album[]) => {
@@ -651,6 +686,7 @@ export default function AdminPage() {
                  playbackLoaded={playbackLoaded}
                  playbackUpdatePending={playbackUpdatePending}
                  playbackActionInProgress={playbackActionInProgress}
+                 lastPlaybackAction={lastPlaybackAction}
                  onAction={handlePlaybackAction}
                  colSpan="lg:col-span-2"
                />

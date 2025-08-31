@@ -6,6 +6,7 @@ import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI } from '
 import { WebSocketClientManager } from './client-manager';
 import { WebSocketMessageHandler } from './message-handlers';
 import { WSMessage, Album, Track, PlaybackState } from './types';
+import { logger } from '@/lib/utils/logger';
 
 // Declare global type for WebSocket update function
 declare global {
@@ -19,6 +20,7 @@ const ALBUMS_FILE = path.join(DATA_DIR, 'albums.json');
 // OAuth variables
 let accessToken = '';
 let refreshToken = '';
+let playbackPollInterval: NodeJS.Timeout | null = null;
 
 // Spotify API setup
 const spotifyApi = new SpotifyWebApi({
@@ -28,7 +30,7 @@ const spotifyApi = new SpotifyWebApi({
 });
 
 // No file-based token persistence; tokens are provided by clients
-console.log('🔑 WS tokens: using in-memory tokens only (no file persistence)');
+logger.info('WS tokens: using in-memory tokens only (no file persistence)');
 
 // Admin monitoring data
 let adminStats = {
@@ -63,7 +65,7 @@ export function startWebSocketServer() {
   const clientManager = new WebSocketClientManager();
   const messageHandler = new WebSocketMessageHandler(clientManager);
 
-  console.log('WebSocket server listening on port', WS_PORT);
+  logger.info(`WebSocket server listening on port ${WS_PORT}`);
 
   // Also start an HTTP server for inter-process communication
   const http = require('http');
@@ -76,7 +78,7 @@ export function startWebSocketServer() {
       req.on('end', () => {
         try {
           const data = JSON.parse(body);
-          console.log('📡 Received update from Next.js:', data.type);
+          logger.api('Received update from Next.js:', data.type);
 
           // Handle the update
           if (data.type === 'albums' && Array.isArray(data.albums)) {
@@ -101,11 +103,11 @@ export function startWebSocketServer() {
 
   const HTTP_PORT = WS_PORT + 1; // Use port 3003 for HTTP communication
   httpServer.listen(HTTP_PORT, () => {
-    console.log(`WebSocket HTTP server listening on port ${HTTP_PORT}`);
+    logger.info(`WebSocket HTTP server listening on port ${HTTP_PORT}`);
   });
 
   wss.on('connection', (ws: WebSocket) => {
-    console.log('🔌 WS client connected');
+    logger.websocket('WS client connected');
 
     // Determine if this is an admin client (could be enhanced with authentication)
     const isAdmin = false; // For now, all clients are wall clients
@@ -193,15 +195,11 @@ export function startWebSocketServer() {
     console.log('🔄 WS tokens updated via callback', { hasAccess: !!accessToken, hasRefresh: !!refreshToken });
   };
 
-  // Start polling for playback updates
-  startPlaybackPolling(messageHandler);
-
   console.log(`🚀 WebSocket server started - polling enabled: ${!!accessToken}`);
   console.log(`🔑 Access token present: ${!!accessToken}, Refresh token present: ${!!refreshToken}`);
 
-  // Start polling immediately if we have tokens
+  // Start polling if we have tokens
   if (accessToken) {
-    console.log('🎵 Starting Spotify playback polling...');
     startPlaybackPolling(messageHandler);
   }
 }
@@ -296,16 +294,33 @@ async function fetchCurrentPlayback(): Promise<PlaybackState | null> {
 function startPlaybackPolling(messageHandler: WebSocketMessageHandler) {
   if (!accessToken) return;
 
-  const pollInterval = setInterval(async () => {
+  // Prevent multiple polling intervals
+  if (playbackPollInterval) {
+    console.log('🎵 Playback polling already running, skipping...');
+    return;
+  }
+
+  console.log('🎵 Starting playback polling with interval:', parseInt(process.env.WS_POLLING_INTERVAL || '2000'), 'ms');
+
+  playbackPollInterval = setInterval(async () => {
+    console.log('🔄 Polling Spotify for current playback...');
     const playbackState = await fetchCurrentPlayback();
     if (playbackState) {
+      console.log('📡 Broadcasting playback update:', {
+        hasTrack: !!playbackState.nowPlaying,
+        trackName: playbackState.nowPlaying?.name || 'None',
+        isPlaying: playbackState.isPlaying
+      });
       messageHandler.broadcastPlaybackUpdate(playbackState);
+    } else {
+      console.log('📡 No playback state to broadcast');
     }
   }, parseInt(process.env.WS_POLLING_INTERVAL || '2000'));
 
   // Set up token refresh
   setInterval(() => {
     if (refreshToken) {
+      console.log('🔄 Refreshing Spotify access token...');
       refreshAccessToken();
     }
   }, 3000000); // Refresh every 50 minutes
