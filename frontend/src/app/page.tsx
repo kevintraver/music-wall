@@ -27,31 +27,27 @@ export default function Home() {
   const [qrs, setQrs] = useState<{ [key: string]: string }>({});
   const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
   const [upNext, setUpNext] = useState<import("@/lib/queue").MinimalTrack[]>([]);
-  const [apiBase, setApiBase] = useState('');
   const [albumsLoading, setAlbumsLoading] = useState(true);
   const [playbackLoaded, setPlaybackLoaded] = useState(false);
   const [queueLoaded, setQueueLoaded] = useState(false);
 
 
   useEffect(() => {
-    const base = `http://${window.location.hostname}:3001`;
-    setApiBase(base);
-    fetch(`${base}/api/albums`)
+    fetch('/api/albums')
       .then(res => res.json())
       .then(setAlbums)
       .finally(() => setAlbumsLoading(false));
   }, []);
 
   useEffect(() => {
-    if (!apiBase) return;
     albums.forEach(album => {
-      fetch(`${apiBase}/api/qr/${album.id}`)
+      fetch(`/api/qr/${album.id}`)
         .then(res => res.json())
         .then(data => {
           setQrs(prev => ({ ...prev, [album.id]: data.qr }));
         });
     });
-  }, [albums, apiBase]);
+  }, [albums]);
 
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -168,36 +164,33 @@ export default function Home() {
 
   // Seed queue initially from API in case WS message is delayed or lacks queue
   useEffect(() => {
-    if (!apiBase) return;
-    fetch(`${apiBase}/api/queue`)
+    fetch('/api/queue')
       .then(res => res.json())
       .then((payload) => { setUpNext(normalizeQueue(payload)); setQueueLoaded(true); })
       .catch(() => setQueueLoaded(true));
-  }, [apiBase]);
+  }, []);
 
   // Poll queue as fallback if WS doesn’t include it continuously
   useEffect(() => {
-    if (!apiBase) return;
     const id = window.setInterval(() => {
-      fetch(`${apiBase}/api/queue`)
+      fetch('/api/queue')
         .then(res => res.json())
         .then((payload) => setUpNext(normalizeQueue(payload)))
         .catch(() => {/* ignore */});
     }, 30000); // Reduced from 5s to 30s
     return () => window.clearInterval(id);
-  }, [apiBase]);
+  }, []);
 
   // Poll albums periodically to ensure sync with admin changes
   useEffect(() => {
-    if (!apiBase) return;
     const id = window.setInterval(() => {
-      fetch(`${apiBase}/api/albums`)
+      fetch('/api/albums')
         .then(res => res.json())
         .then((albumsData) => setAlbums(albumsData))
         .catch(() => {/* ignore */});
     }, 10000); // Refresh albums every 10 seconds
     return () => window.clearInterval(id);
-  }, [apiBase]);
+  }, []);
 
 
 

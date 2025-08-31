@@ -2,33 +2,31 @@
 
 # Install all dependencies (including pm2 for process management)
 install:
-    cd backend && npm install
-    cd ../frontend && npm install
+    cd frontend && npm install
     npm install -g pm2
 
-# Start backend server
-start-backend:
-    pm2 start "cd backend && npm start" --name songwall-backend || just start-backend-fallback
+# Start NextJS app
+start-app:
+    pm2 start "cd frontend && npm run dev" --name songwall-app || just start-app-fallback
 
-# Start frontend dev server
-start-frontend:
-    pm2 start "cd frontend && npm run dev" --name songwall-frontend || just start-frontend-fallback
+# Start WebSocket server
+start-ws:
+    pm2 start "cd frontend && npm run ws" --name songwall-ws || just start-ws-fallback
 
-# Start both backend and frontend
+# Start both app and WebSocket server
 start-all:
-    just start-backend
-    just start-frontend
+    just start-app
+    just start-ws
 
 # Fallbacks without pm2
-start-backend-fallback:
-    cd backend && npm start &
-
-start-frontend-fallback:
+start-app-fallback:
     cd frontend && npm run dev &
+
+start-ws-fallback:
+    cd frontend && npm run ws &
 
 # Clean node_modules
 clean:
-    rm -rf backend/node_modules
     rm -rf frontend/node_modules
 
 # Stop all processes
@@ -41,13 +39,13 @@ restart:
 
 # Fallback stop without pm2
 stop-fallback:
-    -pkill -f "node server.js"
     -pkill -f "next dev"
+    -pkill -f "start-websocket"
 
 # Fallback start without pm2
 start-all-fallback:
-    just start-backend-fallback
-    just start-frontend-fallback
+    just start-app-fallback
+    just start-ws-fallback
 
 # Full setup (install + start)
 setup:

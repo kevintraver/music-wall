@@ -5,23 +5,17 @@ import { useState, useEffect } from "react";
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [apiBase, setApiBase] = useState('');
-
-  useEffect(() => {
-    const base = `http://${window.location.hostname}:3001`;
-    setApiBase(base);
-  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch(`${apiBase}/api/admin/login`, {
+    const res = await fetch('/api/admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
     });
     const data = await res.json();
     if (data.redirect) {
-      window.location.href = `${apiBase}${data.redirect}`;
+      window.location.href = data.redirect;
     } else {
       alert('Invalid credentials');
     }

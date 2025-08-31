@@ -35,7 +35,6 @@ export default function AdminPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [isDebouncing, setIsDebouncing] = useState(false);
   const [pendingAddId, setPendingAddId] = useState<string | null>(null);
-  const [apiBase, setApiBase] = useState('');
   const abortRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<number | null>(null);
   // Keep a stable reference to albums to avoid re-triggering searches on add
@@ -49,10 +48,8 @@ export default function AdminPage() {
   const [wsConnected, setWsConnected] = useState(false);
 
   useEffect(() => {
-    const base = `http://${window.location.hostname}:3001`;
-    setApiBase(base);
     // Check auth status on load
-    fetch(`${base}/api/admin/status`)
+    fetch('/api/admin/status')
       .then(res => res.json())
       .then(data => {
 
@@ -70,44 +67,44 @@ export default function AdminPage() {
   }, [router]);
 
   useEffect(() => {
-    if (isLoggedIn && apiBase) {
+    if (isLoggedIn) {
       // Try to seed playback status if the WS payload doesn't include it
       // Non-fatal if the endpoint doesn't exist
-      fetch(`${apiBase}/api/playback/status`)
+      fetch('/api/playback/status')
         .then(res => res.ok ? res.json() : Promise.reject())
         .then((data) => {
           if (typeof data?.isPlaying === 'boolean') setIsPlaying(data.isPlaying);
         })
         .catch(() => {/* ignore */});
 
-      fetch(`${apiBase}/api/albums`)
+      fetch('/api/albums')
         .then(res => res.json())
         .then(setAlbums)
         .finally(() => setAlbumsLoading(false));
     }
-  }, [isLoggedIn, apiBase]);
+  }, [isLoggedIn]);
 
   // Fetch initial queue when logged in
   useEffect(() => {
-    if (isLoggedIn && apiBase) {
-      fetch(`${apiBase}/api/queue`)
+    if (isLoggedIn) {
+      fetch('/api/queue')
         .then(res => res.json())
         .then((payload) => { setUpNext(normalizeQueue(payload)); setQueueLoaded(true); })
         .catch(() => { setUpNext([]); setQueueLoaded(true); });
     }
-  }, [isLoggedIn, apiBase]);
+  }, [isLoggedIn]);
 
   // Poll queue periodically as a fallback if WS doesn’t include it
   useEffect(() => {
-    if (!isLoggedIn || !apiBase) return;
+    if (!isLoggedIn) return;
     const id = window.setInterval(() => {
-      fetch(`${apiBase}/api/queue`)
+      fetch('/api/queue')
         .then(res => res.json())
         .then((payload) => setUpNext(normalizeQueue(payload)))
         .catch(() => {/* ignore */});
     }, 30000); // Reduced from 5s to 30s
     return () => window.clearInterval(id);
-  }, [isLoggedIn, apiBase]);
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -270,7 +267,6 @@ export default function AdminPage() {
 
 
   const performSearch = useCallback(async (query: string) => {
-    if (!apiBase) return;
     const q = query.trim();
     if (!q) { setSearchResults([]); return; }
     abortRef.current?.abort();
@@ -278,7 +274,7 @@ export default function AdminPage() {
     abortRef.current = controller;
     setIsSearching(true);
     try {
-      const res = await fetch(`${apiBase}/api/search?q=${encodeURIComponent(q)}`, { signal: controller.signal });
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { signal: controller.signal });
       if (!res.ok) throw new Error('Search failed');
        const results: Album[] = await res.json();
        // Include all results, even those already in the wall
@@ -290,7 +286,7 @@ export default function AdminPage() {
     } finally {
       setIsSearching(false);
     }
-  }, [apiBase]);
+  }, []);
 
   useEffect(() => {
     // Keep albumsRef in sync with latest albums
@@ -298,7 +294,6 @@ export default function AdminPage() {
   }, [albums]);
 
   useEffect(() => {
-    if (!apiBase) return;
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
 
     if (searchQuery.trim()) {
@@ -315,20 +310,20 @@ export default function AdminPage() {
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
-  }, [searchQuery, apiBase]);
+  }, [searchQuery]);
 
   const addAlbum = async (album: Album) => {
     setPendingAddId(album.id);
     try {
       // Get canonical album details from backend (ensures image + name/artist consistency)
-      const canonicalRes = await fetch(`${apiBase}/api/album/${album.id}`);
+      const canonicalRes = await fetch(`/api/album/${album.id}`);
       const canonical = canonicalRes.ok ? await canonicalRes.json() : album;
 
       // Backend currently returns { success: true } from POST; it does not assign position.
       // Assign a position on the client and send it.
       const payload = { ...canonical, position: albumsRef.current.length } as Album;
 
-      const res = await fetch(`${apiBase}/api/admin/albums`, {
+      const res = await fetch('/api/admin/albums', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -338,14 +333,14 @@ export default function AdminPage() {
 
       // Refresh albums from server to reflect persisted data and any enrichment
       try {
-        const refreshed = await fetch(`${apiBase}/api/albums`).then(r => r.json());
+        const refreshed = await fetch('/api/albums').then(r => r.json());
         setAlbums(refreshed);
         albumsRef.current = refreshed;
       } catch {
         // Fall back to optimistic update if refresh fails
         setAlbums(prev => {
           const exists = prev.some(a => a.id === payload.id);
-          const next = exists ? prev.map(a => (a.id === payload.id ? payload : a)) : [...prev, payload];
+          const next = exists ? prev.map(a => a.id === payload.id ? payload : a) : [...prev, payload];
           albumsRef.current = next;
           return next;
         });
@@ -363,8 +358,8 @@ export default function AdminPage() {
 
   const removeAlbum = async (id: string) => {
     try {
-      const res = await fetch(`${apiBase}/api/admin/albums/${id}`, { method: 'DELETE' });
-      
+      const res = await fetch(`/api/admin/albums/${id}`, { method: 'DELETE' });
+
       if (!res.ok) {
         throw new Error('Failed to delete album');
       }
@@ -379,7 +374,7 @@ export default function AdminPage() {
 
       // Inform server to persist new order and broadcast to all clients
       try {
-        await fetch(`${apiBase}/api/admin/albums/reorder`, {
+        await fetch('/api/admin/albums/reorder', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(reindexed)
@@ -407,7 +402,7 @@ export default function AdminPage() {
     }
 
     try {
-      const res = await fetch(`${apiBase}${endpoint}`, { method: 'POST' });
+      const res = await fetch(endpoint, { method: 'POST' });
       if (!res.ok) {
         throw new Error(`Playback ${action} failed`);
       }
@@ -433,14 +428,13 @@ export default function AdminPage() {
       setPlaybackActionLoading(null);
       setPlaybackUpdatePending(false);
     }
-  }, [apiBase]);
+  }, []);
 
   const refreshPlaybackData = async () => {
-    if (!apiBase) return;
     try {
       const [nowPlayingRes, queueRes] = await Promise.all([
-        fetch(`${apiBase}/api/now-playing`),
-        fetch(`${apiBase}/api/queue`)
+        fetch('/api/now-playing'),
+        fetch('/api/queue')
       ]);
 
       if (nowPlayingRes.ok) {
@@ -464,7 +458,7 @@ export default function AdminPage() {
   const handleReorder = async (updatedAlbums: Album[]) => {
     setAlbums(updatedAlbums);
     try {
-      await fetch(`${apiBase}/api/admin/albums/reorder`, {
+      await fetch('/api/admin/albums/reorder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedAlbums)
