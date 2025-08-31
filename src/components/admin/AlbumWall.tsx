@@ -23,6 +23,8 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
+  const [dragCooldown, setDragCooldown] = useState(false);
+  const [recentlyDraggedIndex, setRecentlyDraggedIndex] = useState<number | null>(null);
 
   // Ensure unique albums by id to avoid React key warnings when duplicates slip in
   const uniqueAlbums = useMemo(() => {
@@ -76,6 +78,13 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
       setDraggedAlbum(null);
       setDraggedIndex(null);
       setDragOverIndex(null);
+      // Add cooldown to prevent immediate hover effects
+      setDragCooldown(true);
+      setRecentlyDraggedIndex(draggedIndex);
+      setTimeout(() => {
+        setDragCooldown(false);
+        setRecentlyDraggedIndex(null);
+      }, 300);
       return;
     }
 
@@ -83,6 +92,13 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
       setDraggedAlbum(null);
       setDraggedIndex(null);
       setDragOverIndex(null);
+      // Add cooldown to prevent immediate hover effects
+      setDragCooldown(true);
+      setRecentlyDraggedIndex(draggedIndex);
+      setTimeout(() => {
+        setDragCooldown(false);
+        setRecentlyDraggedIndex(null);
+      }, 300);
       return;
     }
 
@@ -100,13 +116,28 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
     setDraggedAlbum(null);
     setDraggedIndex(null);
     setDragOverIndex(null);
+    // Add cooldown after successful reorder
+    setDragCooldown(true);
+    setRecentlyDraggedIndex(draggedIndex);
+    setTimeout(() => {
+      setDragCooldown(false);
+      setRecentlyDraggedIndex(null);
+    }, 500);
   };
 
   const handleDragEnd = () => {
+    const currentDraggedIndex = draggedIndex;
     setDraggedAlbum(null);
     setDraggedIndex(null);
     setDragOverIndex(null);
     setDragPosition(null);
+    // Add cooldown to prevent immediate hover effects after drag ends
+    setDragCooldown(true);
+    setRecentlyDraggedIndex(currentDraggedIndex);
+    setTimeout(() => {
+      setDragCooldown(false);
+      setRecentlyDraggedIndex(null);
+    }, 300);
   };
 
   // Add mouse event listeners during drag
@@ -152,7 +183,7 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e, index)}
               onDragEnd={handleDragEnd}
-              className={`absolute inset-0 cursor-move transition-all duration-200 select-none rounded-lg ${
+              className={`absolute inset-0 cursor-move transition-all duration-200 select-none rounded-lg group ${
                 isDraggedItem ? "opacity-50 scale-95" : ""
               } ${isDropTarget ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-gray-800" : ""} ${
                 shouldShift ? "transform translate-x-2" : ""
@@ -164,14 +195,16 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
                 WebkitUserSelect: "none",
               }}
             >
-              <button
-                onClick={() => onRemove(album.id)}
-                className="absolute top-2 right-2 w-6 h-6 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center opacity-70 hover:opacity-100 transition-all text-xs z-10 shadow-lg"
-                type="button"
-                title="Remove album"
-              >
-                ×
-              </button>
+              {!isDraggedItem && !dragCooldown && index !== recentlyDraggedIndex && (
+                <button
+                  onClick={() => onRemove(album.id)}
+                  className="absolute top-2 right-2 w-8 h-8 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-sm z-20 shadow-lg border-2 border-white/20"
+                  type="button"
+                  title="Remove album"
+                >
+                  🗑️
+                </button>
+              )}
             </div>
           );
         }}

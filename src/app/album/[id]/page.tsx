@@ -520,30 +520,7 @@ export default function AlbumPage() {
           )}
         </div>
 
-        {/* Queue Preview */}
-        {upNext.length > 0 && (
-          <div className="mt-6 bg-gray-800 rounded-xl p-4">
-            <h3 className="text-lg font-semibold mb-3">Up Next</h3>
-            <div className="space-y-2">
-              {upNext.slice(0, 3).map((track, index) => (
-                <div key={track.id} className="flex items-center space-x-3 text-sm">
-                  <div className="w-6 h-6 bg-gray-700 rounded-full flex items-center justify-center text-xs">
-                    {index + 1}
-                  </div>
-                  <div className="flex-1 truncate">
-                    <div className="font-medium">{track.name}</div>
-                    <div className="text-gray-400">{track.artist}</div>
-                  </div>
-                </div>
-              ))}
-              {upNext.length > 3 && (
-                <div className="text-sm text-gray-400 text-center pt-2">
-                  +{upNext.length - 3} more songs
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+
       </div>
     </div>
   );
