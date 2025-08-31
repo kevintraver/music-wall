@@ -683,15 +683,17 @@ export default function AdminPage() {
         <div className="grid grid-cols-[2fr_1fr] gap-6 min-h-0">
           {/* Current Wall Section */}
           <div className="bg-gray-800 rounded-2xl p-6 flex flex-col overflow-hidden">
-            <div className="mb-5 flex-shrink-0 flex items-center">
+            <div className="mb-5 flex-shrink-0 flex items-center justify-between">
               <button
                 onClick={() => setShowAddModal(true)}
-                className="text-white hover:text-gray-300 text-2xl mr-3 transition-colors"
+                className="text-white hover:text-gray-300 text-lg flex items-center transition-colors"
                 title="Add Album"
               >
-                +
+                <span className="text-2xl mr-2">+</span>
+                <span>Add Album</span>
               </button>
-              <h2 className="text-xl font-semibold">Current Wall</h2>
+              <h2 className="text-xl font-semibold text-center flex-1">Current Wall</h2>
+              <div className="w-8"></div> {/* Spacer for balance */}
             </div>
             <div className="flex-1 overflow-y-auto pr-2">
               <div className="grid grid-cols-3 gap-4">
