@@ -149,9 +149,15 @@ export function startWebSocketServer() {
       // ignore read errors
     }
 
-    // Send an immediate playback/queue snapshot on new connection
+    // Send last known playback snapshot if available, then request fresh
+    if (lastPlaybackSnapshot && ws.readyState === WebSocket.OPEN) {
+      try { ws.send(JSON.stringify(lastPlaybackSnapshot)); } catch {}
+    }
     fetchAndBroadcast().catch(() => {/* ignore */});
   });
+
+  // Keep last playback snapshot to prime new clients
+  let lastPlaybackSnapshot: any = null;
 
   function sendUpdate(data: any) {
     clients.forEach(client => {
@@ -159,6 +165,9 @@ export function startWebSocketServer() {
         client.send(JSON.stringify(data));
       }
     });
+    if (data && (Object.prototype.hasOwnProperty.call(data, 'nowPlaying') || Object.prototype.hasOwnProperty.call(data, 'queue') || Object.prototype.hasOwnProperty.call(data, 'isPlaying'))) {
+      lastPlaybackSnapshot = data;
+    }
   }
 
   // Export sendUpdate function for use in API routes
@@ -311,7 +320,7 @@ function getRetryAfterDelay(error: any) {
         return;
       }
 
-      const [nowPlayingRes, queueRes] = await Promise.all([
+      const [nowPlayingRes, playbackStateRes] = await Promise.all([
         spotifyApi.getMyCurrentPlayingTrack(),
         spotifyApi.getMyCurrentPlaybackState()
       ]);
@@ -323,22 +332,18 @@ function getRetryAfterDelay(error: any) {
       lastApiCall = Date.now();
       consecutiveErrors = 0;
 
+      const currentItem: any = (nowPlayingRes.body as any)?.item || (playbackStateRes.body as any)?.item || null;
       const update = {
-        nowPlaying: nowPlayingRes.body.item && 'artists' in nowPlayingRes.body.item ? {
-          id: nowPlayingRes.body.item.id,
-          name: nowPlayingRes.body.item.name,
-          artist: nowPlayingRes.body.item.artists[0].name,
-          album: nowPlayingRes.body.item.album.name,
-          image: nowPlayingRes.body.item.album.images[0]?.url
+        type: 'playback',
+        nowPlaying: currentItem && currentItem.album && currentItem.artists ? {
+          id: currentItem.id,
+          name: currentItem.name,
+          artist: currentItem.artists[0]?.name,
+          album: currentItem.album?.name,
+          image: currentItem.album?.images?.[0]?.url,
         } : null,
-        isPlaying: nowPlayingRes.body.is_playing || false,
-        queue: (queueRes.body as any).queue ? (queueRes.body as any).queue.slice(0, 10).map((track: any) => ({
-          id: track.id,
-          name: track.name,
-          artist: track.artists[0].name,
-          album: track.album.name,
-          image: track.album.images[0]?.url
-        })) : []
+        isPlaying: (nowPlayingRes.body as any)?.is_playing ?? (playbackStateRes.body as any)?.is_playing ?? false,
+        queue: [] as any[],
       };
 
       console.log('📡 Sending WS update to', clients.length, 'clients - Now playing:', update.nowPlaying?.name || 'None');

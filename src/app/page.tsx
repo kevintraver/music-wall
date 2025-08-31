@@ -78,6 +78,7 @@ export default function Home() {
       ws.onopen = () => {
         console.log('WebSocket connected');
         reconnectAttempts = 0;
+        setPlaybackLoaded(true);
         // Allow UI to render while waiting for first snapshot
         setQueueLoaded(true);
 
