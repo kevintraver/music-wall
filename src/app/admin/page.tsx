@@ -6,6 +6,7 @@ import AlbumWall from "@/components/AlbumWall";
 import { normalizeQueue } from "@/lib/queue";
 import NowPlayingPanel from "@/components/NowPlayingPanel";
 import { useRouter } from "next/navigation";
+import { getTokens, clearTokens } from "@/lib/tokens";
 
 interface Album {
   id: string;
@@ -49,7 +50,14 @@ export default function AdminPage() {
 
   useEffect(() => {
     // Check auth status on load
-    fetch('/api/admin/status')
+    const { accessToken, refreshToken } = getTokens();
+
+    fetch('/api/admin/status', {
+      headers: {
+        'x-spotify-access-token': accessToken,
+        'x-spotify-refresh-token': refreshToken
+      }
+    })
       .then(res => res.json())
       .then(data => {
         console.log('Auth status:', data); // Debug log
@@ -62,6 +70,7 @@ export default function AdminPage() {
 
         console.log('Authenticated, showing admin panel');
         setIsLoggedIn(true);
+
       })
       .catch(error => {
         console.error('Error checking auth status:', error);
@@ -73,7 +82,13 @@ export default function AdminPage() {
     if (isLoggedIn) {
       // Try to seed playback status if the WS payload doesn't include it
       // Non-fatal if the endpoint doesn't exist
-      fetch('/api/playback/status')
+      const { accessToken, refreshToken } = getTokens();
+      fetch('/api/playback/status', {
+        headers: {
+          'x-spotify-access-token': accessToken,
+          'x-spotify-refresh-token': refreshToken
+        }
+      })
         .then(res => res.ok ? res.json() : Promise.reject())
         .then((data) => {
           if (typeof data?.isPlaying === 'boolean') setIsPlaying(data.isPlaying);
@@ -90,7 +105,13 @@ export default function AdminPage() {
   // Fetch initial queue when logged in
   useEffect(() => {
     if (isLoggedIn) {
-      fetch('/api/queue')
+      const { accessToken, refreshToken } = getTokens();
+      fetch('/api/queue', {
+        headers: {
+          'x-spotify-access-token': accessToken,
+          'x-spotify-refresh-token': refreshToken
+        }
+      })
         .then(res => res.json())
         .then((payload) => { setUpNext(normalizeQueue(payload)); setQueueLoaded(true); })
         .catch(() => { setUpNext([]); setQueueLoaded(true); });
@@ -473,7 +494,12 @@ export default function AdminPage() {
 
   const handleLogout = async () => {
     try {
+      // Clear tokens from localStorage
+      clearTokens();
+
+      // Also call logout API for any server-side cleanup
       await fetch('/api/admin/logout', { method: 'POST' });
+
       router.push('/login');
     } catch (error) {
       console.error('Error logging out:', error);

@@ -1,29 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
 import { getCodeVerifier } from '@/lib/oauth';
 
 // OAuth variables
 let accessToken = '';
 let refreshToken = '';
-
-// Token persistence
-const TOKEN_FILE = path.join(process.cwd(), 'data', 'spotify-tokens.json');
-
-function saveTokens() {
-  try {
-    const tokens = {
-      accessToken,
-      refreshToken,
-      savedAt: new Date().toISOString()
-    };
-    fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2));
-    console.log('Saved Spotify tokens to file');
-  } catch (error) {
-    console.error('Error saving tokens:', error);
-  }
-}
 
 // Spotify API setup - will be updated with correct redirect URI
 let spotifyApi: SpotifyWebApi;
@@ -65,11 +46,10 @@ export async function GET(request: NextRequest) {
     accessToken = data.access_token;
     refreshToken = data.refresh_token;
     spotifyApi.setAccessToken(accessToken);
-    saveTokens(); // Save tokens to file
-    console.log('Successfully authenticated and saved Spotify tokens');
+    console.log('Successfully authenticated with Spotify tokens');
 
-    // Redirect to admin page using the same hostname as the request
-    return NextResponse.redirect(`http://${host}/admin`);
+    // Redirect to a callback page that will store tokens in localStorage
+    return NextResponse.redirect(`http://${host}/callback/success?access_token=${accessToken}&refresh_token=${refreshToken || ''}`);
   } catch (error) {
     console.error('Error exchanging code:', error);
     return NextResponse.json({ error: 'Auth failed' }, { status: 500 });

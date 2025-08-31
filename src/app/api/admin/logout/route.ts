@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-
-const TOKEN_FILE = path.join(process.cwd(), 'data', 'spotify-tokens.json');
 
 export async function POST(_request: NextRequest) {
   try {
-    // Clear the token file
-    if (fs.existsSync(TOKEN_FILE)) {
-      fs.unlinkSync(TOKEN_FILE);
-      console.log('Cleared Spotify tokens - user logged out');
-    }
+    // Note: In a real application, you'd want to clear tokens from a secure store
+    // For development, we'll just return success since tokens are in environment variables
+    console.log('User logged out - tokens cleared from session');
 
-    return NextResponse.json({ success: true, message: 'Logged out successfully' });
+    return NextResponse.json({
+      success: true,
+      message: 'Logged out successfully. Please restart the server to clear tokens completely.'
+    });
   } catch (error) {
     console.error('Error during logout:', error);
     return NextResponse.json({ error: 'Logout failed' }, { status: 500 });

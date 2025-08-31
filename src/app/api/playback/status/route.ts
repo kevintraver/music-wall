@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
 
-const TOKEN_FILE = path.join(process.cwd(), 'data', 'spotify-tokens.json');
+const TOKEN_FILE = path.join(process.cwd(), '.tokens', 'spotify-tokens.json');
 
 // OAuth variables
 let accessToken = '';
