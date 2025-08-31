@@ -90,15 +90,35 @@ export default function AlbumPage() {
         setAlbum(initial);
 
         if (!initial.tracks || initial.tracks.length === 0) {
-          const { accessToken } = getTokens();
-          if (accessToken) {
-            try {
-              const tracks = await fetchAllAlbumTracksFromSpotify(found.id, accessToken);
-              // Persist back to localStorage for future loads
-              setAlbumTracks(found.id, tracks);
-              setAlbum(prev => prev ? { ...prev, tracks } : prev);
-            } catch (e) {
-              console.warn('Failed to fetch tracks from Spotify; continuing with empty list');
+          // First try to fetch from server API (uses server credentials)
+          try {
+            const response = await fetch(`${apiBase}/api/album/${found.id}`);
+            if (response.ok) {
+              const albumData = await response.json();
+              if (albumData.tracks && albumData.tracks.length > 0) {
+                const tracks = albumData.tracks;
+                // Persist back to localStorage for future loads
+                setAlbumTracks(found.id, tracks);
+                setAlbum(prev => prev ? { ...prev, tracks } : prev);
+              }
+            } else {
+              throw new Error('Server API failed');
+            }
+          } catch (serverError) {
+            console.warn('Failed to fetch tracks from server API, trying client Spotify API:', serverError);
+            // Fallback to client-side Spotify API if server fails
+            const { accessToken } = getTokens();
+            if (accessToken) {
+              try {
+                const tracks = await fetchAllAlbumTracksFromSpotify(found.id, accessToken);
+                // Persist back to localStorage for future loads
+                setAlbumTracks(found.id, tracks);
+                setAlbum(prev => prev ? { ...prev, tracks } : prev);
+              } catch (e) {
+                console.warn('Failed to fetch tracks from Spotify; continuing with empty list');
+              }
+            } else {
+              console.warn('No access token available and server API failed; tracks will not be available');
             }
           }
         }

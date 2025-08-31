@@ -23,8 +23,7 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
-  const [dragCooldown, setDragCooldown] = useState(false);
-  const [recentlyDraggedIndex, setRecentlyDraggedIndex] = useState<number | null>(null);
+  const [isDraggingAnyAlbum, setIsDraggingAnyAlbum] = useState(false);
 
   // Ensure unique albums by id to avoid React key warnings when duplicates slip in
   const uniqueAlbums = useMemo(() => {
@@ -34,12 +33,10 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
   }, [albums]);
 
   const handleDragStart = (e: React.DragEvent, album: Album, index: number) => {
-    e.stopPropagation();
     setDraggedAlbum(album);
     setDraggedIndex(index);
     setDragPosition({ x: e.clientX, y: e.clientY });
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", album.id);
+    setIsDraggingAnyAlbum(true);
   };
 
   const handleMouseMove = (e: MouseEvent) => {
@@ -78,13 +75,7 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
       setDraggedAlbum(null);
       setDraggedIndex(null);
       setDragOverIndex(null);
-      // Add cooldown to prevent immediate hover effects
-      setDragCooldown(true);
-      setRecentlyDraggedIndex(draggedIndex);
-      setTimeout(() => {
-        setDragCooldown(false);
-        setRecentlyDraggedIndex(null);
-      }, 300);
+      setIsDraggingAnyAlbum(false);
       return;
     }
 
@@ -92,13 +83,7 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
       setDraggedAlbum(null);
       setDraggedIndex(null);
       setDragOverIndex(null);
-      // Add cooldown to prevent immediate hover effects
-      setDragCooldown(true);
-      setRecentlyDraggedIndex(draggedIndex);
-      setTimeout(() => {
-        setDragCooldown(false);
-        setRecentlyDraggedIndex(null);
-      }, 300);
+      setIsDraggingAnyAlbum(false);
       return;
     }
 
@@ -116,28 +101,15 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
     setDraggedAlbum(null);
     setDraggedIndex(null);
     setDragOverIndex(null);
-    // Add cooldown after successful reorder
-    setDragCooldown(true);
-    setRecentlyDraggedIndex(draggedIndex);
-    setTimeout(() => {
-      setDragCooldown(false);
-      setRecentlyDraggedIndex(null);
-    }, 500);
+    setIsDraggingAnyAlbum(false);
   };
 
   const handleDragEnd = () => {
-    const currentDraggedIndex = draggedIndex;
     setDraggedAlbum(null);
     setDraggedIndex(null);
     setDragOverIndex(null);
     setDragPosition(null);
-    // Add cooldown to prevent immediate hover effects after drag ends
-    setDragCooldown(true);
-    setRecentlyDraggedIndex(currentDraggedIndex);
-    setTimeout(() => {
-      setDragCooldown(false);
-      setRecentlyDraggedIndex(null);
-    }, 300);
+    setIsDraggingAnyAlbum(false);
   };
 
   // Add mouse event listeners during drag
@@ -195,7 +167,7 @@ export default function AlbumWall({ albums, albumsLoading, onRemove, onReorder }
                 WebkitUserSelect: "none",
               }}
             >
-              {!isDraggedItem && !dragCooldown && index !== recentlyDraggedIndex && (
+              {!isDraggedItem && !isDraggingAnyAlbum && (
                 <button
                   onClick={() => onRemove(album.id)}
                   className="absolute top-2 right-2 w-8 h-8 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-sm z-20 shadow-lg border-2 border-white/20"
