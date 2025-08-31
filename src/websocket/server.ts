@@ -129,23 +129,23 @@ export function startWebSocketServer() {
           if (data.type === 'auth') {
             client.isAdmin = true;
             updateAdminStats(clientManager);
-            console.log(`🔑 Client ${clientId} authenticated as admin`);
+            logger.info(`Client ${clientId} authenticated as admin`);
 
             // Extract and set Spotify tokens
             const authData = data as any;
             if (authData.accessToken) {
               accessToken = authData.accessToken;
               spotifyApi.setAccessToken(accessToken);
-              console.log('🎵 WS access token set from client auth');
+              logger.info('WS access token set from client auth');
             }
             if (authData.refreshToken) {
               refreshToken = authData.refreshToken;
-              console.log('🔄 WS refresh token set from client auth');
+              logger.info('WS refresh token set from client auth');
             }
 
             // Start polling if we now have tokens
             if (accessToken) {
-              console.log('🎵 Starting Spotify playback polling after auth...');
+              logger.playback('Starting Spotify playback polling after auth...');
               startPlaybackPolling(messageHandler);
             }
           }
@@ -158,7 +158,7 @@ export function startWebSocketServer() {
     });
 
     ws.on('close', () => {
-      console.log('🔌 WS client disconnected');
+      logger.websocket('WS client disconnected');
       clientManager.removeClient(clientId);
       updateAdminStats(clientManager);
     });
@@ -192,11 +192,11 @@ export function startWebSocketServer() {
     if (rt) {
       refreshToken = rt;
     }
-    console.log('🔄 WS tokens updated via callback', { hasAccess: !!accessToken, hasRefresh: !!refreshToken });
+    logger.info('WS tokens updated via callback', { hasAccess: !!accessToken, hasRefresh: !!refreshToken });
   };
 
-  console.log(`🚀 WebSocket server started - polling enabled: ${!!accessToken}`);
-  console.log(`🔑 Access token present: ${!!accessToken}, Refresh token present: ${!!refreshToken}`);
+  logger.info(`WebSocket server started - polling enabled: ${!!accessToken}`);
+  logger.info(`Access token present: ${!!accessToken}, Refresh token present: ${!!refreshToken}`);
 
   // Start polling if we have tokens
   if (accessToken) {
@@ -239,19 +239,19 @@ function sendInitialData(ws: WebSocket) {
 
 async function fetchCurrentPlayback(): Promise<PlaybackState | null> {
   if (!accessToken) {
-    console.log('No access token available for playback polling');
+    logger.warn('No access token available for playback polling');
     return null;
   }
 
   try {
-    console.log('Fetching current playback from Spotify API...');
+    logger.api('Fetching current playback from Spotify API...');
 
     const [nowPlayingRes, playbackStateRes] = await Promise.all([
       spotifyApi.getMyCurrentPlayingTrack(),
       spotifyApi.getMyCurrentPlaybackState()
     ]);
 
-    console.log('Spotify API responses:', {
+    logger.api('Spotify API responses:', {
       nowPlayingStatus: nowPlayingRes.statusCode,
       playbackStateStatus: playbackStateRes.statusCode,
       hasNowPlayingItem: !!(nowPlayingRes.body as any)?.item,
@@ -274,7 +274,7 @@ async function fetchCurrentPlayback(): Promise<PlaybackState | null> {
       queue: [] // Queue fetching would need separate API call
     };
 
-    console.log('Playback state result:', {
+    logger.playback('Playback state result:', {
       hasTrack: !!playbackState.nowPlaying,
       trackName: playbackState.nowPlaying?.name || 'None',
       isPlaying: playbackState.isPlaying
@@ -296,31 +296,31 @@ function startPlaybackPolling(messageHandler: WebSocketMessageHandler) {
 
   // Prevent multiple polling intervals
   if (playbackPollInterval) {
-    console.log('🎵 Playback polling already running, skipping...');
+    logger.info('Playback polling already running, skipping...');
     return;
   }
 
-  console.log('🎵 Starting playback polling with interval:', parseInt(process.env.WS_POLLING_INTERVAL || '2000'), 'ms');
+  logger.playback('Starting playback polling with interval:', parseInt(process.env.WS_POLLING_INTERVAL || '2000'), 'ms');
 
   playbackPollInterval = setInterval(async () => {
-    console.log('🔄 Polling Spotify for current playback...');
+    logger.debug('Polling Spotify for current playback...');
     const playbackState = await fetchCurrentPlayback();
     if (playbackState) {
-      console.log('📡 Broadcasting playback update:', {
+      logger.websocket('Broadcasting playback update:', {
         hasTrack: !!playbackState.nowPlaying,
         trackName: playbackState.nowPlaying?.name || 'None',
         isPlaying: playbackState.isPlaying
       });
       messageHandler.broadcastPlaybackUpdate(playbackState);
     } else {
-      console.log('📡 No playback state to broadcast');
+      logger.debug('No playback state to broadcast');
     }
   }, parseInt(process.env.WS_POLLING_INTERVAL || '2000'));
 
   // Set up token refresh
   setInterval(() => {
     if (refreshToken) {
-      console.log('🔄 Refreshing Spotify access token...');
+      logger.info('Refreshing Spotify access token...');
       refreshAccessToken();
     }
   }, 3000000); // Refresh every 50 minutes
@@ -330,7 +330,7 @@ async function refreshAccessToken() {
   if (!refreshToken) return;
 
   try {
-    console.log('Refreshing Spotify access token...');
+    logger.info('Refreshing Spotify access token...');
     const response = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
       headers: {

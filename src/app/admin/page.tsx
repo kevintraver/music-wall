@@ -51,7 +51,6 @@ export default function AdminPage() {
   const [queueLoaded, setQueueLoaded] = useState(false);
 
    const [playbackActionInProgress, setPlaybackActionInProgress] = useState<string | null>(null);
-   const [lastPlaybackAction, setLastPlaybackAction] = useState<{ action: string; timestamp: number } | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const [showWsTooltip, setShowWsTooltip] = useState(false);
   const [isTooltipHovered, setIsTooltipHovered] = useState(false);
@@ -362,16 +361,7 @@ export default function AdminPage() {
     };
   }, [searchQuery]);
 
-  // Clean up lastPlaybackAction after debounce period
-  useEffect(() => {
-    if (lastPlaybackAction) {
-      const timeout = setTimeout(() => {
-        setLastPlaybackAction(null);
-      }, 300); // Clear after debounce period
 
-      return () => clearTimeout(timeout);
-    }
-  }, [lastPlaybackAction]);
 
   const addAlbum = async (album: Album) => {
     setPendingAddId(album.id);
@@ -485,35 +475,17 @@ export default function AdminPage() {
   };
 
     const handlePlaybackAction = useCallback(async (action: string, endpoint: string) => {
-      const now = Date.now();
-
-      // Debounce: Prevent actions within 300ms of the last action
-      if (lastPlaybackAction && (now - lastPlaybackAction.timestamp) < 300) {
-        console.log(`Playback action ${action} debounced - too soon after ${lastPlaybackAction.action}`);
-        return;
-      }
-
-      // Record this action for debouncing (but don't disable buttons)
-      setLastPlaybackAction({ action, timestamp: now });
-
-      // Optimistically update the UI immediately for all actions
+      // Optimistically update the UI immediately
       let originalIsPlaying = isPlaying;
-      let optimisticUpdate = false;
 
       if (action === 'play') {
         setIsPlaying(true);
-        optimisticUpdate = true;
       } else if (action === 'pause') {
         setIsPlaying(false);
-        optimisticUpdate = true;
-      } else if (action === 'previous' || action === 'next') {
-        // For skip actions, show pending state briefly
-        setPlaybackUpdatePending(true);
-        optimisticUpdate = true;
       }
 
       try {
-        // Set action in progress only during the API call
+        // Disable button during API call
         setPlaybackActionInProgress(action);
 
         const { accessToken, refreshToken } = getTokens();
@@ -531,29 +503,16 @@ export default function AdminPage() {
 
         console.log(`✅ Playback ${action} successful`);
 
-        // Clear pending state after successful action
-        if (optimisticUpdate) {
-          setTimeout(() => {
-            setPlaybackUpdatePending(false);
-          }, 150); // Brief delay to show success
-        }
-
       } catch (error) {
         console.error(`❌ Error ${action}:`, error);
 
         // Revert optimistic update on error
-        if (optimisticUpdate) {
-          setIsPlaying(originalIsPlaying);
-          setPlaybackUpdatePending(false);
-        }
-
-        // Clear the last action on error to allow retries
-        setLastPlaybackAction(null);
+        setIsPlaying(originalIsPlaying);
       } finally {
-        // Clear the in-progress state after API call completes
+        // Re-enable button after API call completes
         setPlaybackActionInProgress(null);
       }
-    }, [isPlaying, lastPlaybackAction]);
+    }, [isPlaying]);
 
   // Handle album reorder coming from AlbumWall
   const handleReorder = async (updatedAlbums: Album[]) => {
@@ -686,7 +645,6 @@ export default function AdminPage() {
                  playbackLoaded={playbackLoaded}
                  playbackUpdatePending={playbackUpdatePending}
                  playbackActionInProgress={playbackActionInProgress}
-                 lastPlaybackAction={lastPlaybackAction}
                  onAction={handlePlaybackAction}
                  colSpan="lg:col-span-2"
                />
