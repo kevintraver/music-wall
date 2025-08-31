@@ -22,6 +22,7 @@ function AddAlbumModal({ open, onClose, onAddAlbum }: Props) {
   const [searchResults, setSearchResults] = useState<Album[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [pendingAddId, setPendingAddId] = useState<string | null>(null);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -65,6 +66,23 @@ function AddAlbumModal({ open, onClose, onAddAlbum }: Props) {
     }
   };
 
+  // Automatic search with debouncing
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (searchQuery.trim()) {
+      debounceRef.current = setTimeout(() => {
+        performSearch(searchQuery);
+      }, 500);
+    } else {
+      setSearchResults([]);
+    }
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchQuery]);
+
   useEffect(() => {
     if (!open) {
       setSearchQuery('');
@@ -90,16 +108,16 @@ function AddAlbumModal({ open, onClose, onAddAlbum }: Props) {
       />
       <div
         ref={dialogRef}
-        className="relative bg-white w-full max-w-lg rounded-xl shadow-2xl p-6 mx-4"
+        className="relative bg-gray-800 w-full max-w-lg rounded-xl shadow-2xl p-6 mx-4 text-white"
       >
         <div className="flex items-start justify-between mb-4">
-          <h2 id="add-album-title" className="text-xl font-semibold text-gray-900">
+          <h2 id="add-album-title" className="text-xl font-semibold text-white">
             Add Album
           </h2>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-400 hover:text-white"
           >
             ✕
           </button>
@@ -111,42 +129,38 @@ function AddAlbumModal({ open, onClose, onAddAlbum }: Props) {
               placeholder="Search for albums..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  performSearch(searchQuery);
-                }
-              }}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-900"
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-white placeholder-gray-400"
             />
             {searchQuery && (
               <button
-                onClick={() => performSearch(searchQuery)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-emerald-600 text-white rounded text-sm hover:bg-emerald-700"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white w-6 h-6 flex items-center justify-center"
+                aria-label="Clear search"
               >
-                Search
+                ✕
               </button>
             )}
           </div>
 
           <div className="max-h-96 overflow-y-auto">
             {isSearching ? (
-              <div className="text-center py-8 text-gray-600">
+              <div className="text-center py-8 text-gray-400">
                 Searching...
               </div>
             ) : searchResults.length > 0 ? (
               <div className="space-y-3">
                 {searchResults.map((album) => (
-                  <div key={album.id} className="flex items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                  <div key={album.id} className="flex items-center p-3 bg-gray-700 rounded-lg hover:bg-gray-600">
                     <img
                       src={album.image}
                       alt={`${album.name} album cover`}
                       className="w-12 h-12 rounded mr-3 object-cover"
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-gray-900 truncate">
+                      <div className="font-medium text-white truncate">
                         {album.name}
                       </div>
-                      <div className="text-sm text-gray-600 truncate">
+                      <div className="text-sm text-gray-400 truncate">
                         {album.artist}
                       </div>
                     </div>
@@ -161,7 +175,7 @@ function AddAlbumModal({ open, onClose, onAddAlbum }: Props) {
                 ))}
               </div>
             ) : searchQuery && !isSearching ? (
-              <div className="text-center py-8 text-gray-600">
+              <div className="text-center py-8 text-gray-400">
                 No results found
               </div>
             ) : null}
@@ -171,7 +185,7 @@ function AddAlbumModal({ open, onClose, onAddAlbum }: Props) {
         <div className="mt-6 flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-900"
+            className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white"
           >
             Close
           </button>
