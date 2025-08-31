@@ -24,4 +24,6 @@ dist/
 build/
 
 # Application data files
-albums.json
+albums.json-e 
+# Spotify authentication tokens
+backend/spotify-tokens.json
