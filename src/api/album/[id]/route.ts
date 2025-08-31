@@ -127,21 +127,103 @@ export async function GET(
 
   console.log(`Album API called for ID: ${albumId}`);
 
-  // Check if we have basic album info locally
-  const localAlbum = albums.find((a: any) => a.id === albumId);
+  const localAlbum = albums.find((a: any) => a.id === albumId) || null;
 
-  if (localAlbum) {
-    console.log(`Found local album: ${localAlbum.name}`);
-    return NextResponse.json(localAlbum);
+  // Ensure Spotify auth
+  if (!isAuthenticated) {
+    try {
+      isAuthenticated = await authenticateSpotify();
+    } catch {}
   }
 
-  // If not found locally, return a basic response
-  console.log(`Album ${albumId} not found locally`);
-  return NextResponse.json({
-    id: albumId,
-    name: 'Unknown Album',
-    artist: 'Unknown Artist',
-    image: '',
-    tracks: []
-  });
+  try {
+    // Fetch album metadata
+    const albumRate = checkEndpointRateLimit('getAlbum');
+    if (albumRate !== true) {
+      console.log(`Rate limited for getAlbum, using local data if available`);
+      if (localAlbum) return NextResponse.json({ ...localAlbum, tracks: [] });
+    }
+
+    const albumData = await spotifyApiClient.getAlbum(albumId, { market: 'US' });
+    recordEndpointCall('getAlbum');
+
+    // Fetch all tracks (paginate if necessary)
+    const tracks: any[] = [];
+    let offset = 0;
+    const limit = 50;
+    while (true) {
+      const trackRate = checkEndpointRateLimit('getAlbumTracks');
+      if (trackRate !== true) {
+        console.log(`Rate limited for getAlbumTracks, stopping pagination at offset ${offset}`);
+        break;
+      }
+      const t = await spotifyApiClient.getAlbumTracks(albumId, { limit, offset, market: 'US' });
+      recordEndpointCall('getAlbumTracks');
+      const items = (t.body.items || []) as any[];
+      tracks.push(...items);
+      if (!t.body.next || items.length < limit) break;
+      offset += limit;
+      await new Promise(r => setTimeout(r, 150));
+    }
+
+    const normalizedTracks = tracks.map((n: any) => ({
+      id: n?.id,
+      name: n?.name,
+      duration_ms: n?.duration_ms ?? 0,
+      artist: n?.artists?.[0]?.name,
+      image: albumData.body.images?.[0]?.url || n?.album?.images?.[0]?.url || '',
+    }));
+
+    const response = {
+      id: albumData.body.id,
+      name: albumData.body.name,
+      artist: albumData.body.artists?.[0]?.name || 'Unknown Artist',
+      image: albumData.body.images?.[0]?.url || localAlbum?.image || '',
+      position: localAlbum?.position ?? 0,
+      tracks: normalizedTracks,
+    };
+
+    return NextResponse.json(response);
+  } catch (error: any) {
+    // Handle rate limit with single retry
+    const shouldRetry = await handleRateLimitError(error, `album+tracks fetch for ${albumId}`);
+    if (shouldRetry) {
+      try {
+        const albumData = await spotifyApiClient.getAlbum(albumId, { market: 'US' });
+        const t = await spotifyApiClient.getAlbumTracks(albumId, { limit: 50, offset: 0, market: 'US' });
+        const items = (t.body.items || []) as any[];
+        const normalizedTracks = items.map((n: any) => ({
+          id: n?.id,
+          name: n?.name,
+          duration_ms: n?.duration_ms ?? 0,
+          artist: n?.artists?.[0]?.name,
+          image: albumData.body.images?.[0]?.url || n?.album?.images?.[0]?.url || '',
+        }));
+        const response = {
+          id: albumData.body.id,
+          name: albumData.body.name,
+          artist: albumData.body.artists?.[0]?.name || 'Unknown Artist',
+          image: albumData.body.images?.[0]?.url || localAlbum?.image || '',
+          position: localAlbum?.position ?? 0,
+          tracks: normalizedTracks,
+        };
+        return NextResponse.json(response);
+      } catch (retryError) {
+        console.warn('Retry failed for album fetch:', (retryError as any)?.message);
+      }
+    }
+
+    console.error('Error fetching album/tracks:', { message: error?.message, statusCode: error?.statusCode });
+    // Fallback to local if available
+    if (localAlbum) {
+      return NextResponse.json({ ...localAlbum, tracks: [] });
+    }
+    return NextResponse.json({
+      id: albumId,
+      name: 'Unknown Album',
+      artist: 'Unknown Artist',
+      image: '',
+      tracks: []
+    });
+  }
 }

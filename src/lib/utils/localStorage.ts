@@ -2,12 +2,21 @@
 const ALBUMS_STORAGE_KEY = 'songwall_albums';
 const DEFAULT_ALBUMS_KEY = 'songwall_default_loaded';
 
+export interface Track {
+  id: string;
+  name: string;
+  duration_ms: number;
+  artist?: string;
+  image?: string;
+}
+
 export interface Album {
   id: string;
   name: string;
   artist: string;
   image: string;
   position: number;
+  tracks?: Track[];
 }
 
 // Load albums from localStorage
@@ -89,6 +98,17 @@ export function removeAlbum(albumId: string): Album[] {
 // Reorder albums
 export function reorderAlbums(updatedAlbums: Album[]): void {
   saveAlbumsToStorage(updatedAlbums);
+}
+
+// Set or update tracks for a specific album
+export function setAlbumTracks(albumId: string, tracks: Track[]): Album[] {
+  const current = loadAlbumsFromStorage();
+  const idx = current.findIndex(a => a.id === albumId);
+  if (idx === -1) return current;
+  const updated = [...current];
+  updated[idx] = { ...updated[idx], tracks };
+  saveAlbumsToStorage(updated);
+  return updated;
 }
 
 // Load default albums from server

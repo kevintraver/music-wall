@@ -9,7 +9,7 @@ import NowPlayingPanel from "@/components/shared/NowPlayingPanel";
 
 import { getTokens, clearTokens } from "@/lib/auth/tokens";
 import { logger } from "@/lib/utils/logger";
-import { getAlbums, addAlbum as addAlbumToStorage, removeAlbum as removeAlbumFromStorage, reorderAlbums, saveAlbumsToStorage, resetToDefaults } from "@/lib/utils/localStorage";
+import { getAlbums, addAlbum as addAlbumToStorage, removeAlbum as removeAlbumFromStorage, reorderAlbums, saveAlbumsToStorage, resetToDefaults, setAlbumTracks } from "@/lib/utils/localStorage";
 
 interface Album {
   id: string;
@@ -50,6 +50,8 @@ export default function AdminPage() {
   const syncAlbums = useCallback(async (albumsToSync: Album[]) => {
     try {
       const { accessToken, refreshToken } = getTokens();
+      // Strip heavy fields like tracks before broadcasting
+      const lightweight = albumsToSync.map(a => ({ id: a.id, name: a.name, artist: a.artist, image: a.image, position: a.position }));
       await fetch('/api/admin/albums/sync', {
         method: 'POST',
         headers: {
@@ -57,7 +59,7 @@ export default function AdminPage() {
           'x-spotify-access-token': accessToken,
           'x-spotify-refresh-token': refreshToken,
         },
-        body: JSON.stringify(albumsToSync),
+        body: JSON.stringify(lightweight),
       });
     } catch (e) {
       console.warn('Failed to sync albums to WS:', e);
@@ -423,8 +425,24 @@ export default function AdminPage() {
     setSearchResults(prev => prev.filter(a => a.id !== album.id));
 
     try {
-      // Broadcast updated albums to all clients
-      await syncAlbums(optimisticAlbums);
+      // Fetch tracks for the album and persist to localStorage
+      const res = await fetch(`/api/album/${album.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        const tracks = Array.isArray(data?.tracks) ? data.tracks : [];
+        if (tracks.length > 0) {
+          const updatedWithTracks = setAlbumTracks(album.id, tracks);
+          setAlbums(updatedWithTracks);
+          albumsRef.current = updatedWithTracks;
+          // Broadcast lightweight album list (no tracks)
+          await syncAlbums(updatedWithTracks);
+        } else {
+          // No tracks found; still broadcast current state
+          await syncAlbums(optimisticAlbums);
+        }
+      } else {
+        await syncAlbums(optimisticAlbums);
+      }
     } catch (error) {
       console.error('❌ Error adding album:', error);
 
