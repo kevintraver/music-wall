@@ -6,6 +6,7 @@ import Skeleton from "@/components/shared/Skeleton";
 import ResponsiveAlbumGrid from "@/components/wall/ResponsiveAlbumGrid";
 import ErrorBoundary from "@/components/shared/ErrorBoundary";
 import { useAppState } from "@/lib/utils/state-context";
+import { logger } from "@/lib/utils/logger";
 
 
 
@@ -22,7 +23,7 @@ export default function Home() {
     const shouldReset = urlParams.get('reset') === 'true';
 
     if (shouldReset) {
-      console.log('🔄 Resetting to default albums...');
+      logger.info('Resetting to default albums...');
       // Clean up URL
       window.history.replaceState({}, '', window.location.pathname);
     }

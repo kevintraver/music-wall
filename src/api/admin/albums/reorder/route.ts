@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAdminAuth } from '@/lib/auth/middleware';
 import { writeAlbumsToFile } from '@/lib/utils/albums-file';
 import { Album } from '@/websocket/types';
+import { logger } from '@/lib/utils/logger';
 
 // POST /api/admin/albums/reorder - Reorder albums
 export const POST = withAdminAuth(async (request: NextRequest) => {
@@ -38,7 +39,7 @@ export const POST = withAdminAuth(async (request: NextRequest) => {
       global.sendWebSocketUpdate({ type: 'albums', albums: albumsWithPositions });
     }
 
-    console.log(`✅ Albums reordered successfully (${albumsWithPositions.length} albums)`);
+    logger.success(`Albums reordered successfully (${albumsWithPositions.length} albums)`);
 
     return NextResponse.json({
       success: true,

@@ -192,7 +192,7 @@ export const DELETE = withAdminAuth(async (request: NextRequest) => {
         global.sendWebSocketUpdate({ type: 'albums', albums: updatedAlbums });
       }
 
-    console.log(`✅ Deleted album "${albumToDelete.name}"`);
+    logger.success(`Deleted album "${albumToDelete.name}"`);
 
     return NextResponse.json({
       success: true,
