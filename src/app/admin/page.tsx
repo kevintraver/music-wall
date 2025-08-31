@@ -97,6 +97,7 @@ export default function AdminPage() {
     serverStartTime: string;
   } | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [pendingAddId, setPendingAddId] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -524,6 +525,53 @@ export default function AdminPage() {
 
 
 
+  const handleAddAlbum = async (album: Album) => {
+    setPendingAddId(album.id);
+
+    // Optimistic update: Add album to UI immediately
+    const optimisticAlbums = addAlbum(album);
+    setAlbums(optimisticAlbums);
+    albumsRef.current = optimisticAlbums;
+
+    try {
+      // Fetch tracks for the album and persist to localStorage
+      const res = await fetch(`/api/album/${album.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        const tracks = Array.isArray(data?.tracks) ? data.tracks : [];
+        if (tracks.length > 0) {
+          const updatedWithTracks = setAlbumTracks(album.id, tracks);
+          setAlbums(updatedWithTracks);
+          albumsRef.current = updatedWithTracks;
+          // Broadcast lightweight album list (no tracks)
+          await syncAlbums(updatedWithTracks);
+        } else {
+          // No tracks found; still broadcast current state
+          await syncAlbums(optimisticAlbums);
+        }
+      } else {
+        await syncAlbums(optimisticAlbums);
+      }
+    } catch (error) {
+      console.error('❌ Error adding album:', error);
+
+      // Rollback: Remove the optimistically added album
+      try {
+        const rollbackAlbums = removeAlbum(album.id);
+        setAlbums(rollbackAlbums);
+        albumsRef.current = rollbackAlbums;
+
+        // Show error to user
+        alert(`Failed to add album "${album.name}". Please try again.`);
+      } catch (rollbackError) {
+        console.error('Error during rollback:', rollbackError);
+      }
+    } finally {
+      // Clear pending state
+      setPendingAddId(null);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       // Clear tokens from localStorage
@@ -716,7 +764,13 @@ export default function AdminPage() {
             </div>
         </div>
       </div>
-      <AddAlbumModal open={showAddModal} onClose={() => setShowAddModal(false)} />
+      <AddAlbumModal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onAddAlbum={async (album) => {
+          await handleAddAlbum(album);
+        }}
+      />
     </div>
   );
 }
