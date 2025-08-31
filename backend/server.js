@@ -367,13 +367,23 @@ app.get('/api/albums', async (req, res) => {
       const cacheKey = `album_${album.id}`;
       const cached = albumCache.get(cacheKey);
 
+      // If we have a cached version and it's still fresh, use it
       if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
         enrichedAlbums.push(cached.data);
         continue;
       }
 
+      // If the album already has an image from the JSON file, use it directly
+      if (album.image && album.image.startsWith('http')) {
+        console.log(`✅ Using local data for album "${album.name}" (no API call needed)`);
+        albumCache.set(cacheKey, { data: album, timestamp: Date.now() });
+        enrichedAlbums.push(album);
+        continue;
+      }
+
+      // Only fetch from Spotify API if we don't have an image
       try {
-        console.log(`Fetching album ${album.id} from Spotify API`);
+        console.log(`Fetching missing image for album ${album.id} from Spotify API`);
         const data = await spotifyApiClient.getAlbum(album.id, { market: 'US' });
         const enrichedAlbum = {
           ...album,
@@ -381,20 +391,30 @@ app.get('/api/albums', async (req, res) => {
         };
         albumCache.set(cacheKey, { data: enrichedAlbum, timestamp: Date.now() });
         enrichedAlbums.push(enrichedAlbum);
-        console.log(`Successfully cached album ${album.id}`);
+        console.log(`Successfully cached album ${album.id} with fresh image`);
 
         // Add small delay between requests to avoid rate limits
         await new Promise(resolve => setTimeout(resolve, 200));
       } catch (error) {
         if (error.statusCode === 429) {
-          console.log(`Rate limited fetching album ${album.id}, using cached data`);
-          enrichedAlbums.push(cached ? cached.data : album);
+          console.log(`Rate limited fetching album ${album.id}, using local data`);
+          enrichedAlbums.push(album); // Use local data as fallback
           continue;
         }
         console.error(`Error fetching album ${album.id}:`, error.message);
-        enrichedAlbums.push(album);
+        enrichedAlbums.push(album); // Use local data as fallback
       }
     }
+
+    // Log summary of data sources
+    const localCount = enrichedAlbums.filter(album => {
+      const original = albums.find(a => a.id === album.id);
+      return original && original.image === album.image;
+    }).length;
+
+    const apiCount = enrichedAlbums.length - localCount;
+    console.log(`📊 Albums served: ${localCount} from local data, ${apiCount} from Spotify API`);
+
     res.json(enrichedAlbums);
   } catch (error) {
     console.error('Error in /api/albums:', error);
@@ -436,6 +456,12 @@ app.get('/api/album/:id', async (req, res) => {
     return res.json(cached.data);
   }
 
+  // Check if we have basic album info locally
+  const localAlbum = albums.find(a => a.id === albumId);
+  if (!localAlbum) {
+    return res.status(404).json({ error: 'Album not found' });
+  }
+
   try {
     console.log(`Fetching album details and tracks for ${albumId} from Spotify API`);
     // Get album details and tracks in parallel
@@ -448,7 +474,7 @@ app.get('/api/album/:id', async (req, res) => {
       id: albumData.body.id,
       name: albumData.body.name,
       artist: albumData.body.artists[0].name,
-      image: albumData.body.images[0]?.url,
+      image: albumData.body.images[0]?.url || localAlbum.image, // Use local image as fallback
       tracks: tracksData.body.items.map(track => ({
         id: track.id,
         name: track.name,
