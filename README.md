@@ -1,20 +1,22 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Song Wall is a Next.js app that lets guests queue tracks to a shared Spotify session while an admin curates a wall of albums. A lightweight WebSocket server powers real‑time updates.
 
 ## Getting Started
 
-First, run the development server:
+Development commands:
 
 ```bash
+# Next.js app (port 3000)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# WebSocket server (port 3002, HTTP bridge on 3003)
+npm run ws
+
+# Start both via justfile helpers
+just start-all   # start app + WS
+just stop        # stop all
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 to view the app.
 
 ### Configure Spotify OAuth (exact redirect URI)
 
@@ -24,18 +26,18 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - If you prefer the app to run on `http://localhost:3000` while the Spotify redirect uses `127.0.0.1`, set `APP_BASE_URL=http://localhost:3000`. The callback exchanges tokens on the Spotify host and then redirects to `APP_BASE_URL` for `/callback/success`.
 - The `SPOTIFY_REDIRECT_URI` must match character-for-character (scheme, host, port, path, no trailing slash) in both the authorize URL and the token exchange.
 
-### Album Data Storage
+### Album Data Model (localStorage)
 
-The app now uses **localStorage** for album management instead of JSON files:
+- Albums live entirely in the browser’s localStorage under the key `songwall_albums`.
+- First load seeds from `/api/albums/default` (backed by `data/albums.example.json`).
+- Admin changes are broadcast to all clients via `/api/admin/albums/sync` and persisted to each client’s localStorage.
+- The WS server keeps an in‑memory snapshot of the latest albums and sends it to new clients on connect. No JSON file reads/writes are used at runtime.
 
-- **Default albums**: Loaded from `data/albums.example.json` on first use
-- **User albums**: Stored in browser localStorage (not committed to git)
-- **Real-time sync**: All album changes sync instantly across all connected clients
-- **No server persistence**: Albums are stored client-side for simplicity
+Notes:
+- The `data/albums.example.json` file is only for seeding defaults and for the artwork update script; it is not read for ongoing storage.
+- Legacy file‑backed admin endpoints were removed and now return 410 Gone.
 
-The `data/albums.example.json` file provides starter content but is not used for ongoing storage.
-
-### Updating Album Art
+### Updating Default Album Art
 
 Keep album artwork fresh with the Spotify API:
 
@@ -45,21 +47,17 @@ npm run update-album-art
 ```
 
 This script:
-- Fetches current album data from Spotify API
-- Updates `data/albums.example.json` with fresh images and metadata
-- Handles rate limiting and authentication automatically
-- Provides fallback to existing data if API calls fail
+- Fetches album data from Spotify
+- Updates `data/albums.example.json` in place
+- Handles rate limiting and auth
 
 ### Album Management
 
-- **Add Albums**: Search for albums in the admin panel and click the add button
-- **Reorder Albums**: Drag and drop albums to change their order in the wall
-- **Delete Albums**: Click the delete button (🗑️) on any album in the admin panel
-- **Data Storage**: All albums are stored in browser localStorage
-- **Real-time Sync**: Changes sync instantly to all connected clients via WebSocket
-- **No Persistence**: Albums are stored client-side only (refreshing will reset to defaults)
+- Add, reorder, and delete albums in the Admin page; changes sync to all clients via WebSocket and are saved to each client’s localStorage.
+- Tracks for an album are fetched from Spotify on demand by the client if missing, then saved back to localStorage.
+- Admin login redirects to Spotify; tokens are stored client‑side and forwarded to the WS/API for playback and queue operations.
 
-Admin login redirects to Spotify to grant access. Tokens are stored client-side for the admin dashboard and used by server routes for playback/queue.
+If a scanned album ID isn’t in localStorage yet, the album page now waits briefly for the WS snapshot and auto‑resolves once received.
 
 ### WebSocket Server
 
@@ -74,41 +72,23 @@ npm run dev          # Next.js app
 npm run ws           # WebSocket server
 ```
 
-The WebSocket server polls Spotify for updates and broadcasts them to all connected clients.
+The WS server polls Spotify for playback and queue updates and broadcasts them. It also keeps an in‑memory albums snapshot that is sent to new clients on connect.
 
-### Performance Configuration
-
-You can customize polling intervals and rate limiting through environment variables:
+Environment knobs:
 
 ```bash
-# Server-side polling (WebSocket server)
-WS_POLLING_INTERVAL=2000          # How often to poll Spotify (default: 2000ms)
-MIN_API_INTERVAL=500              # Minimum time between API calls (default: 500ms)
-ENDPOINT_RATE_LIMIT=20            # API calls per time window (default: 20)
-ENDPOINT_RATE_WINDOW=5000         # Time window for rate limiting (default: 5000ms)
-
-# Client-side polling (fallback when WebSocket fails)
-NEXT_PUBLIC_QUEUE_POLLING_INTERVAL=3000   # Queue polling interval (default: 3000ms)
-NEXT_PUBLIC_ALBUMS_POLLING_INTERVAL=2000  # Albums polling interval (default: 2000ms)
+WS_POLLING_INTERVAL=2000    # ms between Spotify polling
 ```
 
-Lower values provide faster updates but may hit Spotify's rate limits. Higher values reduce API usage but increase update delays.
+### API Summary
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `GET /api/album/[id]`: Fetch album metadata + tracks from Spotify (no file reads).
+- `GET /api/albums`: Deprecated; returns an empty list.
+- `GET /api/albums/default`: Returns default album list for seeding localStorage.
+- `POST /api/admin/albums/sync`: Broadcast a full albums array to all clients (used by Admin). No persistence.
+- Legacy admin album routes now return 410 Gone.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Queueing
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `POST /api/queue { trackId }`: Queues a track using WS server tokens; broadcasts queue update.
+- `GET /api/queue`: Returns the current queue (via WS HTTP bridge).

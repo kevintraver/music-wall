@@ -1,6 +1,4 @@
 import WebSocket, { WebSocketServer } from 'ws';
-import * as fs from 'fs';
-import * as path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI } from '@/lib/utils/env';
 import { WebSocketClientManager } from './client-manager';
@@ -14,8 +12,10 @@ declare global {
   var setSpotifyTokens: (tokens: { accessToken?: string; refreshToken?: string }) => void;
 }
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const ALBUMS_FILE = path.join(DATA_DIR, 'albums.json');
+// In-memory snapshot of albums to share with new clients
+let currentAlbums: Album[] = [];
+
+// No filesystem persistence for albums; kept in-memory via currentAlbums
 
 // OAuth variables
 let accessToken = '';
@@ -64,6 +64,7 @@ export function startWebSocketServer() {
   const wss = new WebSocketServer({ port: WS_PORT });
   const clientManager = new WebSocketClientManager();
   const messageHandler = new WebSocketMessageHandler(clientManager);
+  // In-memory snapshot of albums for new clients (no file persistence)
 
   logger.info(`WebSocket server listening on port ${WS_PORT}`);
 
@@ -82,7 +83,8 @@ export function startWebSocketServer() {
 
           // Handle the update
           if (data.type === 'albums' && Array.isArray(data.albums)) {
-            messageHandler.broadcastAlbums(data.albums);
+            currentAlbums = data.albums as Album[];
+            messageHandler.broadcastAlbums(currentAlbums);
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true }));
           } else {
@@ -275,7 +277,8 @@ export function startWebSocketServer() {
   // Set up global functions for API routes
   global.sendWebSocketUpdate = (data: any) => {
     if (data.type === 'albums' && Array.isArray(data.albums)) {
-      messageHandler.broadcastAlbums(data.albums);
+      currentAlbums = data.albums as Album[];
+      messageHandler.broadcastAlbums(currentAlbums);
     } else if (data.type === 'playback') {
       messageHandler.broadcastPlaybackUpdate(data.payload);
     } else if (data.type === 'queue') {
@@ -308,7 +311,13 @@ export function startWebSocketServer() {
 
 function sendInitialData(ws: WebSocket) {
   try {
-    // No longer send albums snapshot from filesystem; clients manage albums via localStorage
+    // Send latest albums snapshot kept in memory (if available)
+    // This keeps new clients in sync without touching the filesystem
+    if (Array.isArray(currentAlbums) && currentAlbums.length > 0) {
+      try {
+        ws.send(JSON.stringify({ type: 'albums', payload: currentAlbums, timestamp: Date.now() }));
+      } catch {/* ignore */}
+    }
 
     // Send initial playback state if available
     if (accessToken) {
@@ -322,6 +331,7 @@ function sendInitialData(ws: WebSocket) {
         }
       }).catch(() => {/* ignore */});
     }
+    // Nothing else to defer here
   } catch (error) {
     console.warn('Error sending initial data:', error);
   }

@@ -1,23 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as fs from 'fs';
-import * as path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
 import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET } from '@/lib/utils/env';
-
-const ALBUMS_FILE = path.join(process.cwd(), 'data', 'albums.json');
-
-// Load albums from JSON
-function loadAlbums() {
-  try {
-    const data = fs.readFileSync(ALBUMS_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('Error loading albums.json:', error);
-    return [];
-  }
-}
-
-let albums = loadAlbums();
 
 // Spotify API setup
 const spotifyApiClient = new SpotifyWebApi({
@@ -127,8 +110,6 @@ export async function GET(
 
   console.log(`Album API called for ID: ${albumId}`);
 
-  const localAlbum = albums.find((a: any) => a.id === albumId) || null;
-
   // Ensure Spotify auth
   if (!isAuthenticated) {
     try {
@@ -140,8 +121,7 @@ export async function GET(
     // Fetch album metadata
     const albumRate = checkEndpointRateLimit('getAlbum');
     if (albumRate !== true) {
-      console.log(`Rate limited for getAlbum, using local data if available`);
-      if (localAlbum) return NextResponse.json({ ...localAlbum, tracks: [] });
+      console.log(`Rate limited for getAlbum, skipping external call`);
     }
 
     const albumData = await spotifyApiClient.getAlbum(albumId, { market: 'US' });
@@ -178,8 +158,8 @@ export async function GET(
       id: albumData.body.id,
       name: albumData.body.name,
       artist: albumData.body.artists?.[0]?.name || 'Unknown Artist',
-      image: albumData.body.images?.[0]?.url || localAlbum?.image || '',
-      position: localAlbum?.position ?? 0,
+      image: albumData.body.images?.[0]?.url || '',
+      position: 0,
       tracks: normalizedTracks,
     };
 
@@ -203,8 +183,8 @@ export async function GET(
           id: albumData.body.id,
           name: albumData.body.name,
           artist: albumData.body.artists?.[0]?.name || 'Unknown Artist',
-          image: albumData.body.images?.[0]?.url || localAlbum?.image || '',
-          position: localAlbum?.position ?? 0,
+          image: albumData.body.images?.[0]?.url || '',
+          position: 0,
           tracks: normalizedTracks,
         };
         return NextResponse.json(response);
@@ -214,10 +194,6 @@ export async function GET(
     }
 
     console.error('Error fetching album/tracks:', { message: error?.message, statusCode: error?.statusCode });
-    // Fallback to local if available
-    if (localAlbum) {
-      return NextResponse.json({ ...localAlbum, tracks: [] });
-    }
     return NextResponse.json({
       id: albumId,
       name: 'Unknown Album',

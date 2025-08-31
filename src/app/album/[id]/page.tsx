@@ -6,6 +6,7 @@ import Skeleton from "@/components/shared/Skeleton";
 import { normalizeQueue } from "@/lib/spotify/queue";
 import { getTokens } from "@/lib/auth/tokens";
 import { logger } from "@/lib/utils/logger";
+import { getAlbums, setAlbumTracks, saveAlbumsToStorage } from "@/lib/utils/localStorage";
 
 interface Track {
   id: string;
@@ -49,16 +50,6 @@ export default function AlbumPage() {
   useEffect(() => {
     const base = `http://${window.location.hostname}:3000`;
     setApiBase(base);
-    const fetchOnce = async (id: string) => {
-      const res = await fetch(`${base}/api/album/${id}`);
-      if (!res.ok) {
-        let body = '';
-        try { body = await res.text(); } catch {}
-        try { console.error('Album fetch failed', { id, status: res.status, statusText: res.statusText, body }); } catch {}
-        return null;
-      }
-      try { return await res.json(); } catch { return null; }
-    };
 
     const makeVariants = (id: string): string[] => {
       const variants = new Set<string>();
@@ -72,89 +63,92 @@ export default function AlbumPage() {
       return [...variants].filter(Boolean);
     };
 
-    const tryFetchWithHeuristics = async () => {
-      // 1) Try exact id
-      let data = await fetchOnce(albumId);
-      if (!data) {
-        // 2) Heuristic fallbacks for potential QR casing/character confusion
+    const resolveAlbumFromStorage = async () => {
+      try {
+        const list = await getAlbums();
         const variants = makeVariants(albumId);
-        for (const v of variants) {
-          if (v === albumId) continue;
-          data = await fetchOnce(v);
-          if (data) {
-            try { console.warn('Album resolved via fallback id variant', { original: albumId, used: v }); } catch {}
-            break;
-          }
+        const found = list.find(a => variants.includes(a.id));
+        if (!found) {
+          // Do not fail immediately; wait for WebSocket snapshot or fallback
+          // Show error only if nothing arrives after a short delay
+          setTimeout(() => {
+            setError(`Album ${albumId} not found in local storage`);
+            setAlbumLoading(false);
+          }, 4000);
+          return;
         }
-      }
-      if (!data) {
-        // 3) As a last resort, fetch album list and try to match by variants
-        try {
-          const res = await fetch(`${base}/api/albums`);
-          if (res.ok) {
-            const list = await res.json();
-            const candidates = makeVariants(albumId);
-            const found = (list || []).find((a: any) => candidates.includes(a?.id));
-            if (found?.id) {
-              const retry = await fetchOnce(found.id);
-              if (retry) {
-                try { console.warn('Album resolved via /api/albums lookup', { original: albumId, used: found.id }); } catch {}
-                data = retry;
-              }
+
+        // If tracks are already present, use them. Otherwise try Spotify.
+        const initial: Album = {
+          id: found.id,
+          name: found.name,
+          artist: (found as any).artist || '',
+          image: (found as any).image || '',
+          position: (found as any).position || 0,
+          tracks: (found as any).tracks || [],
+        };
+        setAlbum(initial);
+
+        if (!initial.tracks || initial.tracks.length === 0) {
+          const { accessToken } = getTokens();
+          if (accessToken) {
+            try {
+              const tracks = await fetchAllAlbumTracksFromSpotify(found.id, accessToken);
+              // Persist back to localStorage for future loads
+              setAlbumTracks(found.id, tracks);
+              setAlbum(prev => prev ? { ...prev, tracks } : prev);
+            } catch (e) {
+              console.warn('Failed to fetch tracks from Spotify; continuing with empty list');
             }
           }
-        } catch {}
-      }
-      return data;
-    };
-
-    tryFetchWithHeuristics()
-      .then((data) => {
-        if (!data) throw new Error(`Failed to load album ${albumId}`);
-        if (data.error) throw new Error(data.error);
-        try { console.debug('Album API payload received', data); } catch {}
-        // Normalize possible backend shapes for album + tracks
-        const root = data?.album ? data.album : data;
-        const pickList = (d: any): any[] | null => {
-          if (!d) return null;
-          if (Array.isArray(d.tracks)) return d.tracks;
-          if (Array.isArray(d?.tracks?.items)) return d.tracks.items;
-          if (Array.isArray(d?.items)) return d.items;
-          return null;
-        };
-
-        const rawList = pickList(root) ?? pickList(data) ?? [];
-        const tracks: Track[] = (rawList as any[]).map((t: any) => {
-          const n = t?.track ?? t; // some APIs nest under `track`
-          return {
-            id: n?.id ?? n?.track_id ?? n?.uri ?? '',
-            name: n?.name ?? n?.title ?? n?.track_name ?? '',
-            duration_ms: n?.duration_ms ?? n?.duration ?? 0,
-            artist: n?.artist ?? n?.artist_name ?? n?.artists?.[0]?.name,
-            image: n?.image ?? n?.album_art ?? n?.album?.images?.[0]?.url,
-          } as Track;
-        }).filter((t: Track) => !!t.id);
-
-        const sanitized: Album = {
-          id: root?.id ?? albumId,
-          name: root?.name ?? '',
-          artist: root?.artist ?? root?.artists?.[0]?.name ?? '',
-          image: root?.image ?? root?.images?.[0]?.url ?? '',
-          position: root?.position ?? 0,
-          tracks,
-        };
-        if (!tracks.length) {
-          try { console.warn('No tracks derived from album payload for id', albumId); } catch {}
         }
-        setAlbum(sanitized);
-      })
-      .catch((err) => {
+      } catch (err: any) {
         console.error(err);
         setAlbum(null);
-        setError(err.message || "Failed to load album");
-      })
-      .finally(() => setAlbumLoading(false));
+        setError(err.message || 'Failed to load album');
+      } finally {
+        // Keep loading true if album wasn't resolved to allow WS fallback
+        setAlbumLoading(prev => (album ? false : prev));
+      }
+    };
+
+    resolveAlbumFromStorage();
   }, [albumId]);
+
+  async function fetchAllAlbumTracksFromSpotify(id: string, accessToken: string): Promise<Track[]> {
+    const headers = { Authorization: `Bearer ${accessToken}` } as const;
+
+    // Get album images/metadata if needed (not strictly necessary for tracks)
+    // const albumRes = await fetch(`https://api.spotify.com/v1/albums/${id}`, { headers });
+
+    let tracks: Track[] = [];
+    let offset = 0;
+    const limit = 50;
+    for (;;) {
+      const res = await fetch(`https://api.spotify.com/v1/albums/${id}/tracks?limit=${limit}&offset=${offset}&market=US`, { headers });
+      if (res.status === 429) {
+        const retryAfter = parseInt(res.headers.get('retry-after') || '1', 10) * 1000;
+        const jitter = retryAfter * 0.25 * (Math.random() * 2 - 1);
+        const delay = Math.max(500, retryAfter + jitter);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      if (!res.ok) break;
+      const data: any = await res.json();
+      const items: any[] = Array.isArray(data?.items) ? data.items : [];
+      tracks.push(...items.map((n: any) => ({
+        id: n?.id,
+        name: n?.name ?? '',
+        duration_ms: n?.duration_ms ?? 0,
+        artist: n?.artists?.[0]?.name,
+        image: undefined,
+      })));
+      if (!data.next || items.length < limit) break;
+      offset += limit;
+      await new Promise(r => setTimeout(r, 150));
+    }
+    return tracks.filter(t => !!t.id);
+  }
 
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -208,23 +202,29 @@ export default function AlbumPage() {
               break;
 
              case 'albums':
-               // Album updates - might affect the current album
+               // Albums update from WS; persist to localStorage and resolve current album if missing
                logger.info('Albums updated');
-               // Check if current album still exists or position changed
-               if (Array.isArray(data.payload)) {
-                 const currentAlbum = data.payload.find((album: any) => album.id === albumId);
-                 if (!currentAlbum) {
-                   logger.info('Current album no longer exists, redirecting...');
-                   router.push('/');
-                 }
-               } else if (Array.isArray(data.albums)) {
-                 const currentAlbum = data.albums.find((album: any) => album.id === albumId);
-                 if (!currentAlbum) {
+               const albumsUpdate = Array.isArray(data.payload) ? data.payload : (Array.isArray(data.albums) ? data.albums : []);
+               if (Array.isArray(albumsUpdate) && albumsUpdate.length > 0) {
+                 try { saveAlbumsToStorage(albumsUpdate); } catch {}
+                 const match = albumsUpdate.find((a: any) => a?.id === albumId);
+                 if (match) {
+                   setAlbum((prev) => prev ? prev : {
+                     id: match.id,
+                     name: match.name,
+                     artist: match.artist,
+                     image: match.image,
+                     position: (match as any).position ?? 0,
+                     tracks: []
+                   });
+                   setError(null);
+                   setAlbumLoading(false);
+                 } else {
                    logger.info('Current album no longer exists, redirecting...');
                    router.push('/');
                  }
                }
-              break;
+               break;
 
             default:
               // Handle legacy messages or mixed updates
