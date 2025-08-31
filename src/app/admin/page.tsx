@@ -45,6 +45,25 @@ export default function AdminPage() {
   // Keep a stable reference to albums to avoid re-triggering searches on add
   const albumsRef = useRef<Album[]>([]);
   const [albumsLoading, setAlbumsLoading] = useState(true);
+  
+  // Helper: broadcast current albums to all clients (no server persistence)
+  const syncAlbums = useCallback(async (albumsToSync: Album[]) => {
+    try {
+      const { accessToken, refreshToken } = getTokens();
+      await fetch('/api/admin/albums/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-spotify-access-token': accessToken,
+          'x-spotify-refresh-token': refreshToken,
+        },
+        body: JSON.stringify(albumsToSync),
+      });
+    } catch (e) {
+      console.warn('Failed to sync albums to WS:', e);
+      throw e;
+    }
+  }, []);
 
   // Drag-and-drop state is isolated inside AlbumWall to avoid unrelated re-renders
   const [playbackUpdatePending, setPlaybackUpdatePending] = useState(false);
@@ -121,13 +140,19 @@ export default function AdminPage() {
       if (shouldReset) {
         logger.info('Resetting admin to default albums...');
         resetToDefaults()
-          .then(setAlbums)
+          .then(async (loaded) => {
+            setAlbums(loaded);
+            try { await syncAlbums(loaded); } catch {}
+          })
           .finally(() => setAlbumsLoading(false));
         // Clean up URL
         window.history.replaceState({}, '', window.location.pathname);
       } else {
         getAlbums()
-          .then(setAlbums)
+          .then(async (loaded) => {
+            setAlbums(loaded);
+            try { await syncAlbums(loaded); } catch {}
+          })
           .finally(() => setAlbumsLoading(false));
       }
     }
@@ -398,32 +423,8 @@ export default function AdminPage() {
     setSearchResults(prev => prev.filter(a => a.id !== album.id));
 
     try {
-      // Make API call to persist the change
-      const { accessToken, refreshToken } = getTokens();
-      const response = await fetch('/api/admin/albums', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-spotify-access-token': accessToken,
-          'x-spotify-refresh-token': refreshToken,
-        },
-        body: JSON.stringify({
-          id: album.id,
-          name: album.name,
-          artist: album.artist,
-          image: album.image
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to add album: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      logger.success('Album added successfully:', result);
-
-      // The WebSocket will handle the real update, so we don't need to do anything else
-
+      // Broadcast updated albums to all clients
+      await syncAlbums(optimisticAlbums);
     } catch (error) {
       console.error('❌ Error adding album:', error);
 
@@ -461,25 +462,8 @@ export default function AdminPage() {
     albumsRef.current = optimisticAlbums;
 
     try {
-      // Make API call to persist the change
-      const { accessToken, refreshToken } = getTokens();
-      const response = await fetch(`/api/admin/albums/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'x-spotify-access-token': accessToken,
-          'x-spotify-refresh-token': refreshToken,
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to remove album: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      logger.success('Album removed successfully:', result);
-
-      // The WebSocket will handle the real update, so we don't need to do anything else
-
+      // Broadcast updated albums to all clients
+      await syncAlbums(optimisticAlbums);
     } catch (error) {
       console.error('❌ Error removing album:', error);
 
@@ -593,27 +577,8 @@ export default function AdminPage() {
     albumsRef.current = updatedAlbums;
 
     try {
-      // Make API call to persist the change
-      const { accessToken, refreshToken } = getTokens();
-      const response = await fetch('/api/admin/albums/reorder', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-spotify-access-token': accessToken,
-          'x-spotify-refresh-token': refreshToken,
-        },
-        body: JSON.stringify(updatedAlbums)
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to reorder albums: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      logger.success('Albums reordered successfully:', result);
-
-      // The WebSocket will handle the real update, so we don't need to do anything else
-
+      // Broadcast updated albums to all clients
+      await syncAlbums(updatedAlbums);
     } catch (error) {
       console.error('❌ Error reordering albums:', error);
 

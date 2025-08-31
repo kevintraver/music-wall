@@ -206,19 +206,7 @@ export function startWebSocketServer() {
 
 function sendInitialData(ws: WebSocket) {
   try {
-    // Send albums snapshot
-    let albums: any[] | null = null;
-    if (fs.existsSync(ALBUMS_FILE)) {
-      albums = JSON.parse(fs.readFileSync(ALBUMS_FILE, 'utf8'));
-    } else {
-      const defaultFile = path.join(DATA_DIR, 'albums.example.json');
-      if (fs.existsSync(defaultFile)) {
-        albums = JSON.parse(fs.readFileSync(defaultFile, 'utf8'));
-      }
-    }
-    if (albums && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'albums', payload: albums, timestamp: Date.now() }));
-    }
+    // No longer send albums snapshot from filesystem; clients manage albums via localStorage
 
     // Send initial playback state if available
     if (accessToken) {

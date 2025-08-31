@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import { Album, Track } from '@/websocket/types';
+import { getAlbums as getClientAlbums } from '@/lib/utils/localStorage';
 import { logger } from '@/lib/utils/logger';
 
 // State interface
@@ -90,6 +91,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   // WebSocket connection and message handling
   useEffect(() => {
+    // Seed albums from localStorage/defaults while waiting for WS
+    getClientAlbums().then((albums) => {
+      if (Array.isArray(albums) && albums.length > 0) {
+        dispatch({ type: 'SET_ALBUMS', payload: albums });
+      } else {
+        dispatch({ type: 'SET_LOADING', payload: { key: 'albums', value: false } });
+      }
+    }).catch(() => {
+      dispatch({ type: 'SET_LOADING', payload: { key: 'albums', value: false } });
+    });
+
     let ws: WebSocket | null = null;
     let reconnectAttempts = 0;
     const maxReconnectAttempts = 10;
