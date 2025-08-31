@@ -59,6 +59,38 @@ let codeVerifier = '';
 let accessToken = '';
 let refreshToken = '';
 
+// Token persistence
+const TOKEN_FILE = path.join(__dirname, 'spotify-tokens.json');
+
+function loadTokens() {
+  try {
+    if (fs.existsSync(TOKEN_FILE)) {
+      const tokens = JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf8'));
+      accessToken = tokens.accessToken || '';
+      refreshToken = tokens.refreshToken || '';
+      console.log('Loaded saved Spotify tokens');
+      return true;
+    }
+  } catch (error) {
+    console.error('Error loading saved tokens:', error);
+  }
+  return false;
+}
+
+function saveTokens() {
+  try {
+    const tokens = {
+      accessToken,
+      refreshToken,
+      savedAt: new Date().toISOString()
+    };
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2));
+    console.log('Saved Spotify tokens to file');
+  } catch (error) {
+    console.error('Error saving tokens:', error);
+  }
+}
+
 // PKCE helpers
 function generateCodeVerifier() {
   return crypto.randomBytes(32).toString('base64url');
@@ -75,6 +107,7 @@ function generateCodeChallenge(verifier) {
 async function refreshAccessToken() {
   if (!refreshToken) return;
   try {
+    console.log('Refreshing Spotify access token...');
     const response = await fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
       headers: {
@@ -93,6 +126,10 @@ async function refreshAccessToken() {
         refreshToken = data.refresh_token;
       }
       spotifyApi.setAccessToken(accessToken);
+      saveTokens(); // Save updated tokens
+      console.log('Successfully refreshed and saved Spotify tokens');
+    } else {
+      console.error('Failed to refresh token:', data);
     }
   } catch (error) {
     console.error('Error refreshing token:', error);
@@ -135,12 +172,33 @@ async function authenticateSpotify() {
   }
 }
 
+// Load saved tokens on startup
+const tokensLoaded = loadTokens();
+
 // Initialize authentication
 authenticateSpotify();
-setInterval(authenticateSpotify, 3300000); // Refresh token every 55 minutes (tokens last 1 hour)
+setInterval(authenticateSpotify, 3300000); // Refresh token every 55 minutes
+
+// Set up token refresh interval
 setInterval(() => {
-  if (refreshToken) refreshAccessToken();
+  if (refreshToken) {
+    refreshAccessToken();
+  }
 }, 3000000); // Refresh user token every 50 min
+
+// If we loaded tokens, try to refresh them immediately to ensure they're valid
+if (tokensLoaded && refreshToken) {
+  console.log('Attempting to refresh saved tokens on startup...');
+  setTimeout(() => {
+    refreshAccessToken();
+  }, 1000); // Wait 1 second after startup
+}
+
+// Log authentication status
+console.log('Authentication status on startup:');
+console.log('- Access token:', accessToken ? 'Present' : 'Missing');
+console.log('- Refresh token:', refreshToken ? 'Present' : 'Missing');
+console.log('- Tokens loaded from file:', tokensLoaded);
 
 
 
@@ -237,6 +295,8 @@ app.get('/callback', async (req, res) => {
     accessToken = data.access_token;
     refreshToken = data.refresh_token;
     spotifyApi.setAccessToken(accessToken);
+    saveTokens(); // Save tokens to file
+    console.log('Successfully authenticated and saved Spotify tokens');
     res.redirect(`http://${localIP}:3000/admin`); // Redirect to admin page
   } catch (error) {
     console.error('Error exchanging code:', error);
@@ -695,7 +755,11 @@ app.post('/api/admin/login', (req, res) => {
 });
 
 app.get('/api/admin/status', (req, res) => {
-  res.json({ authenticated: !!accessToken });
+  res.json({
+    authenticated: !!accessToken,
+    hasRefreshToken: !!refreshToken,
+    tokensLoaded: tokensLoaded
+  });
 });
 
 app.get('/api/search', async (req, res) => {
@@ -734,14 +798,34 @@ app.get('/api/debug', (req, res) => {
     cacheEntries: cacheInfo,
     lastApiCall: lastApiCall,
     timeSinceLastApiCall: Math.round((now - lastApiCall) / 1000),
-    accessToken: !!accessToken,
-    clientToken: !!spotifyApiClient.getAccessToken(),
+    authentication: {
+      accessToken: !!accessToken,
+      refreshToken: !!refreshToken,
+      tokensLoaded: tokensLoaded,
+      clientToken: !!spotifyApiClient.getAccessToken()
+    },
     consecutiveErrors,
     rateLimitTracking: {
       totalTrackedIPs: albumRequestTimes.size,
       currentIP: req.ip || req.connection.remoteAddress
     }
   });
+});
+
+// Endpoint to clear saved tokens (useful for testing)
+app.post('/api/admin/clear-tokens', (req, res) => {
+  try {
+    accessToken = '';
+    refreshToken = '';
+    if (fs.existsSync(TOKEN_FILE)) {
+      fs.unlinkSync(TOKEN_FILE);
+      console.log('Cleared saved Spotify tokens');
+    }
+    res.json({ success: true, message: 'Tokens cleared' });
+  } catch (error) {
+    console.error('Error clearing tokens:', error);
+    res.status(500).json({ error: 'Failed to clear tokens' });
+  }
 });
 
 app.post('/api/admin/albums', (req, res) => {
