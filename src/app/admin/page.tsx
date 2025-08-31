@@ -82,21 +82,6 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (isLoggedIn) {
-      // Try to seed playback status if the WS payload doesn't include it
-      // Non-fatal if the endpoint doesn't exist
-      const { accessToken, refreshToken } = getTokens();
-      fetch('/api/playback/status', {
-        headers: {
-          'x-spotify-access-token': accessToken,
-          'x-spotify-refresh-token': refreshToken
-        }
-      })
-        .then(res => res.ok ? res.json() : Promise.reject())
-        .then((data) => {
-          if (typeof data?.isPlaying === 'boolean') setIsPlaying(data.isPlaying);
-        })
-        .catch(() => {/* ignore */});
-
       // Check for reset parameter in URL
       const urlParams = new URLSearchParams(window.location.search);
       const shouldReset = urlParams.get('reset') === 'true';
@@ -140,7 +125,9 @@ export default function AdminPage() {
         console.log('Admin WebSocket connected');
         setWsConnected(true);
         reconnectAttempts = 0;
-        setQueueLoaded(true); // UI can render while snapshot arrives
+        // UI can render while snapshot arrives
+        setPlaybackLoaded(true);
+        setQueueLoaded(true);
 
         // Start heartbeat
         heartbeatInterval = setInterval(() => {
