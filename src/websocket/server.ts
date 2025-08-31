@@ -128,6 +128,24 @@ export function startWebSocketServer() {
             client.isAdmin = true;
             updateAdminStats(clientManager);
             console.log(`🔑 Client ${clientId} authenticated as admin`);
+
+            // Extract and set Spotify tokens
+            const authData = data as any;
+            if (authData.accessToken) {
+              accessToken = authData.accessToken;
+              spotifyApi.setAccessToken(accessToken);
+              console.log('🎵 WS access token set from client auth');
+            }
+            if (authData.refreshToken) {
+              refreshToken = authData.refreshToken;
+              console.log('🔄 WS refresh token set from client auth');
+            }
+
+            // Start polling if we now have tokens
+            if (accessToken) {
+              console.log('🎵 Starting Spotify playback polling after auth...');
+              startPlaybackPolling(messageHandler);
+            }
           }
 
           messageHandler.handleMessage(data, client);
