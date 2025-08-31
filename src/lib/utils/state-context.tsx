@@ -101,7 +101,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       ws = new WebSocket(`ws://${window.location.hostname}:3002`);
 
       ws.onopen = () => {
-        console.log('🔌 Main wall WebSocket connected to port 3002');
+        logger.websocket('Main wall WebSocket connected to port 3002');
         reconnectAttempts = 0;
         dispatch({ type: 'SET_LOADING', payload: { key: 'playback', value: false } });
         dispatch({ type: 'SET_LOADING', payload: { key: 'queue', value: false } });
@@ -110,7 +110,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('📨 Main wall received WebSocket message:', data.type);
+          logger.websocket('Main wall received WebSocket message:', data.type);
 
           switch (data.type) {
              case 'albums':
@@ -121,7 +121,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
                }
                break;
              case 'playback':
-               console.log('🎵 Main wall received playback update:', {
+               logger.playback('Main wall received playback update:', {
                  hasTrack: !!(data.payload?.nowPlaying),
                  trackName: data.payload?.nowPlaying?.name || 'None',
                  isPlaying: data.payload?.isPlaying
