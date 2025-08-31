@@ -16,6 +16,15 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+### Configure Spotify OAuth (exact redirect URI)
+
+- Create a Spotify app at https://developer.spotify.com/dashboard.
+- Add Redirect URIs that exactly match what your app will use (e.g. `http://localhost:3000/callback` and/or `http://127.0.0.1:3000/callback`). Save.
+- Copy `.env.example` to `.env` and fill in `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, set `SPOTIFY_REDIRECT_URI` to one of the registered values, and optionally `ADMIN_USERNAME`/`ADMIN_PASSWORD`.
+- The `SPOTIFY_REDIRECT_URI` must match character-for-character (scheme, host, port, path, no trailing slash) in both the authorize URL and the token exchange.
+
+Admin login redirects to Spotify to grant access. Tokens are stored client-side for the admin dashboard and used by server routes for playback/queue.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

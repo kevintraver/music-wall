@@ -26,6 +26,7 @@ interface Track {
 
 export default function AdminPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [albums, setAlbums] = useState<Album[]>([]);
   const router = useRouter();
   const [nowPlaying, setNowPlaying] = useState<Track | null>(null);
@@ -60,21 +61,19 @@ export default function AdminPage() {
     })
       .then(res => res.json())
       .then(data => {
-        console.log('Auth status:', data); // Debug log
-
+        console.log('Auth status:', data);
         if (!data.authenticated) {
-          console.log('Not authenticated, redirecting to login');
-          router.push('/login');
+          router.replace('/login');
+          setAuthChecked(true);
           return;
         }
-
-        console.log('Authenticated, showing admin panel');
         setIsLoggedIn(true);
-
+        setAuthChecked(true);
       })
       .catch(error => {
         console.error('Error checking auth status:', error);
-        router.push('/login');
+        router.replace('/login');
+        setAuthChecked(true);
       });
   }, [router]);
 
@@ -426,7 +425,14 @@ export default function AdminPage() {
     }
 
     try {
-      const res = await fetch(endpoint, { method: 'POST' });
+      const { accessToken, refreshToken } = getTokens();
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'x-spotify-access-token': accessToken,
+          'x-spotify-refresh-token': refreshToken,
+        },
+      });
       if (!res.ok) {
         throw new Error(`Playback ${action} failed`);
       }
@@ -511,6 +517,19 @@ export default function AdminPage() {
 
 
 
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-800" />
+      </div>
+    );
+  }
+
+  if (!isLoggedIn) {
+    // Rendering nothing to avoid flicker; router.replace('/login') handles navigation
+    return null;
+  }
 
   return (
     <>

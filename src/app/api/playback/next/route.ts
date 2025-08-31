@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
+import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI } from '@/lib/env';
 
 const TOKEN_FILE = path.join(process.cwd(), '.tokens', 'spotify-tokens.json');
 
@@ -29,9 +30,9 @@ const tokensLoaded = loadTokens();
 
 // Spotify API setup
 const spotifyApi = new SpotifyWebApi({
-  clientId: process.env.SPOTIFY_CLIENT_ID,
-  clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
-  redirectUri: 'http://127.0.0.1:3000/callback'
+  clientId: SPOTIFY_CLIENT_ID,
+  clientSecret: SPOTIFY_CLIENT_SECRET,
+  redirectUri: SPOTIFY_REDIRECT_URI,
 });
 
 // Set access token if loaded
@@ -55,7 +56,10 @@ function isThrottled(action: string) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!accessToken) {
+  const headerAccess = request.headers.get('x-spotify-access-token') || '';
+  if (headerAccess) {
+    spotifyApi.setAccessToken(headerAccess);
+  } else if (!accessToken) {
     return NextResponse.json({ error: 'Admin not authenticated with Spotify' }, { status: 401 });
   }
 

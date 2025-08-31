@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
+import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET } from '@/lib/env';
 
 const ALBUMS_FILE = path.join(process.cwd(), 'data', 'albums.json');
 
@@ -20,8 +21,8 @@ let albums = loadAlbums();
 
 // Spotify API setup
 const spotifyApiClient = new SpotifyWebApi({
-  clientId: process.env.SPOTIFY_CLIENT_ID,
-  clientSecret: process.env.SPOTIFY_CLIENT_SECRET
+  clientId: SPOTIFY_CLIENT_ID,
+  clientSecret: SPOTIFY_CLIENT_SECRET
 });
 
 // Authenticate with Spotify

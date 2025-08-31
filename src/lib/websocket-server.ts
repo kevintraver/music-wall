@@ -2,6 +2,7 @@ import WebSocket, { WebSocketServer } from 'ws';
 import fs from 'fs';
 import path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
+import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI } from '@/lib/env';
 
 const TOKEN_FILE = path.join(process.cwd(), 'data', 'spotify-tokens.json');
 
@@ -45,9 +46,9 @@ loadTokens();
 
 // Spotify API setup
 const spotifyApi = new SpotifyWebApi({
-  clientId: process.env.SPOTIFY_CLIENT_ID,
-  clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
-  redirectUri: 'http://127.0.0.1:3000/callback'
+  clientId: SPOTIFY_CLIENT_ID,
+  clientSecret: SPOTIFY_CLIENT_SECRET,
+  redirectUri: SPOTIFY_REDIRECT_URI,
 });
 
 // Set access token if loaded
@@ -66,7 +67,7 @@ async function refreshAccessToken() {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        client_id: process.env.SPOTIFY_CLIENT_ID!,
+        client_id: SPOTIFY_CLIENT_ID,
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
       }),

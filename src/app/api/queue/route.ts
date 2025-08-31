@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 import SpotifyWebApi from 'spotify-web-api-node';
+import { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI } from '@/lib/env';
 
 const TOKEN_FILE = path.join(process.cwd(), 'data', 'spotify-tokens.json');
 
@@ -44,9 +45,9 @@ const tokensLoaded = loadTokens();
 
 // Spotify API setup
 const spotifyApi = new SpotifyWebApi({
-  clientId: process.env.SPOTIFY_CLIENT_ID,
-  clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
-  redirectUri: 'http://127.0.0.1:3000/callback'
+  clientId: SPOTIFY_CLIENT_ID,
+  clientSecret: SPOTIFY_CLIENT_SECRET,
+  redirectUri: SPOTIFY_REDIRECT_URI,
 });
 
 // Set access token if loaded
@@ -65,7 +66,7 @@ async function refreshAccessToken() {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        client_id: process.env.SPOTIFY_CLIENT_ID!,
+        client_id: SPOTIFY_CLIENT_ID,
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
       }),
@@ -124,7 +125,10 @@ function recordEndpointCall(endpoint: string) {
 
 export async function POST(request: NextRequest) {
   console.log('Queue request received');
-  if (!accessToken) {
+  const headerAccess = request.headers.get('x-spotify-access-token') || '';
+  if (headerAccess) {
+    spotifyApi.setAccessToken(headerAccess);
+  } else if (!accessToken) {
     console.log('No access token');
     return NextResponse.json({ error: 'Admin not authenticated with Spotify' }, { status: 401 });
   }
@@ -166,7 +170,10 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  if (!accessToken) {
+  const headerAccess = request.headers.get('x-spotify-access-token') || '';
+  if (headerAccess) {
+    spotifyApi.setAccessToken(headerAccess);
+  } else if (!accessToken) {
     return NextResponse.json({ error: 'Admin not authenticated with Spotify' }, { status: 401 });
   }
 
