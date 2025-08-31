@@ -578,7 +578,7 @@ export default function AdminPage() {
 
               {/* Search right: 1 column with internal scroll */}
               <div className="lg:col-span-1 bg-white p-0 rounded-xl shadow-md flex flex-col h-[72vh] overflow-hidden">
-                <div className="p-6 border-b sticky top-0 bg-white z-10 rounded-t-xl">
+                <div className="p-6 sticky top-0 bg-white z-10 rounded-t-xl">
                   <h2 className="text-xl font-semibold text-gray-800 mb-4">Add Albums</h2>
                   <div className="relative">
                     <span className="material-icons pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
