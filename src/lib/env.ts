@@ -12,3 +12,6 @@ export function assertSpotifyEnv() {
 
 export const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 export const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+
+// Public app base URL for post-auth redirects (can differ from Spotify redirect host)
+export const APP_BASE_URL = process.env.APP_BASE_URL || '';

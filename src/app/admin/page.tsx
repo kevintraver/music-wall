@@ -48,6 +48,7 @@ export default function AdminPage() {
   const [queueLoaded, setQueueLoaded] = useState(false);
   const [playbackActionLoading, setPlaybackActionLoading] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const [showWsTooltip, setShowWsTooltip] = useState(false);
 
   useEffect(() => {
     // Check auth status on load
@@ -121,7 +122,13 @@ export default function AdminPage() {
   useEffect(() => {
     if (!isLoggedIn) return;
     const id = window.setInterval(() => {
-      fetch('/api/queue')
+      const { accessToken, refreshToken } = getTokens();
+      fetch('/api/queue', {
+        headers: {
+          'x-spotify-access-token': accessToken,
+          'x-spotify-refresh-token': refreshToken,
+        },
+      })
         .then(res => res.json())
         .then((payload) => setUpNext(normalizeQueue(payload)))
         .catch(() => {/* ignore */});
@@ -515,12 +522,34 @@ export default function AdminPage() {
             <div className="flex items-center justify-between">
               <h1 className="text-3xl font-bold leading-tight text-gray-900">Admin Dashboard</h1>
               <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                  <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                   <span className="text-sm text-gray-600" title={`WebSocket server: ws://${window.location.hostname}:3002`}>
-                     {wsConnected ? 'Connected' : 'Disconnected'}
-                   </span>
-                 </div>
+                 <div className="flex items-center space-x-2 relative">
+                   <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                    <span
+                      className="text-sm text-gray-600 cursor-help"
+                      onMouseEnter={() => setShowWsTooltip(true)}
+                      onMouseLeave={() => setShowWsTooltip(false)}
+                    >
+                      {wsConnected ? 'Connected' : 'Disconnected'}
+                    </span>
+                     {showWsTooltip && (
+                       <div className="fixed bg-white border border-gray-200 rounded-lg shadow-xl p-4 z-50 min-w-64" style={{ top: '80px', left: '50%', transform: 'translateX(-50%)' }}>
+                         <div className="text-sm font-medium text-gray-900 mb-2">WebSocket Connection</div>
+                         <div className="space-y-2 text-xs text-gray-600">
+                           <div className="flex justify-between">
+                             <span>Server:</span>
+                             <span className="font-mono text-gray-800">ws://{window.location.hostname}:3002</span>
+                           </div>
+                           <div className="flex justify-between">
+                             <span>Status:</span>
+                             <span className={`font-medium ${wsConnected ? 'text-green-600' : 'text-red-600'}`}>
+                               {wsConnected ? 'Connected' : 'Disconnected'}
+                             </span>
+                           </div>
+                         </div>
+                         <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-white border-l border-t border-gray-200 rotate-45"></div>
+                       </div>
+                     )}
+                  </div>
                  <button
                   onClick={handleLogout}
                   className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"

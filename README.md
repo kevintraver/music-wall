@@ -21,6 +21,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 - Create a Spotify app at https://developer.spotify.com/dashboard.
 - Add Redirect URIs that exactly match what your app will use (e.g. `http://localhost:3000/callback` and/or `http://127.0.0.1:3000/callback`). Save.
 - Copy `.env.example` to `.env` and fill in `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, set `SPOTIFY_REDIRECT_URI` to one of the registered values, and optionally `ADMIN_USERNAME`/`ADMIN_PASSWORD`.
+- If you prefer the app to run on `http://localhost:3000` while the Spotify redirect uses `127.0.0.1`, set `APP_BASE_URL=http://localhost:3000`. The callback exchanges tokens on the Spotify host and then redirects to `APP_BASE_URL` for `/callback/success`.
 - The `SPOTIFY_REDIRECT_URI` must match character-for-character (scheme, host, port, path, no trailing slash) in both the authorize URL and the token exchange.
 
 Admin login redirects to Spotify to grant access. Tokens are stored client-side for the admin dashboard and used by server routes for playback/queue.

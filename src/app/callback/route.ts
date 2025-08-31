@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SPOTIFY_CLIENT_ID, SPOTIFY_REDIRECT_URI, assertSpotifyEnv } from '@/lib/env';
+import { SPOTIFY_CLIENT_ID, SPOTIFY_REDIRECT_URI, APP_BASE_URL, assertSpotifyEnv } from '@/lib/env';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -49,7 +49,8 @@ export async function GET(request: NextRequest) {
     const refreshToken = (data.refresh_token as string) || '';
     console.log('Successfully authenticated with Spotify tokens');
 
-    const res = NextResponse.redirect(`http://${host}/callback/success?access_token=${encodeURIComponent(
+    const baseUrl = APP_BASE_URL || `http://${host}`;
+    const res = NextResponse.redirect(`${baseUrl}/callback/success?access_token=${encodeURIComponent(
       accessToken
     )}&refresh_token=${encodeURIComponent(refreshToken)}`);
     // Clear temp cookies

@@ -116,9 +116,9 @@ async function handleRateLimitError(error: any, operation: string) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const albumId = params.id;
+  const { id: albumId } = await params;
   const clientIP = request.ip || 'unknown';
   const now = Date.now();
 
