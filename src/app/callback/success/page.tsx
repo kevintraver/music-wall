@@ -11,10 +11,11 @@ export default function CallbackSuccessPage() {
   useEffect(() => {
     const accessToken = searchParams.get('access_token');
     const refreshToken = searchParams.get('refresh_token');
+    const expiresIn = parseInt(searchParams.get('expires_in') || '3600');
 
     if (accessToken) {
-      // Store tokens in localStorage
-      setTokens(accessToken, refreshToken || '');
+      // Store tokens in localStorage with proper expiration time
+      setTokens(accessToken, refreshToken || '', expiresIn);
 
       // Redirect to admin page
       router.push('/admin');

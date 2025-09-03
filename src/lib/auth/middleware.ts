@@ -111,9 +111,28 @@ export async function authenticateWebSocket(accessToken?: string, refreshToken?:
         userId: userData.id,
       };
     } else if (response.status === 401 && refreshToken) {
-      // Try to refresh token
+      // Try to refresh token using the updated refresh function
       const refreshResult = await refreshAccessToken(refreshToken);
       if (refreshResult.success) {
+        // Update server-side tokens with refreshed tokens
+        try {
+          const { setServerTokens } = await import('@/lib/auth/server-tokens');
+          setServerTokens({
+            accessToken: refreshResult.accessToken!,
+            refreshToken: refreshResult.refreshToken || refreshToken
+          });
+
+          // Update WebSocket tokens if available
+          if (global.setSpotifyTokens) {
+            global.setSpotifyTokens({
+              accessToken: refreshResult.accessToken!,
+              refreshToken: refreshResult.refreshToken || refreshToken
+            });
+          }
+        } catch (e) {
+          console.error('Failed to update server tokens during WS auth:', e);
+        }
+
         return authenticateWebSocket(refreshResult.accessToken, refreshResult.refreshToken);
       }
     }

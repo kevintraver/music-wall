@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
 
     const accessToken = data.access_token as string;
     const refreshToken = (data.refresh_token as string) || '';
+    const expiresIn = data.expires_in as number || 3600; // Default to 1 hour
     console.log('Successfully authenticated with Spotify tokens');
 
     // Update tokens in this Next.js process and the WebSocket server
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
     const baseUrl = APP_BASE_URL || `http://${host}`;
     const res = NextResponse.redirect(`${baseUrl}/callback/success?access_token=${encodeURIComponent(
       accessToken
-    )}&refresh_token=${encodeURIComponent(refreshToken)}`);
+    )}&refresh_token=${encodeURIComponent(refreshToken)}&expires_in=${expiresIn}`);
     // Clear temp cookies
     res.cookies.set('spotify_oauth_state', '', { httpOnly: true, maxAge: 0, path: '/' });
     res.cookies.set('spotify_pkce_verifier', '', { httpOnly: true, maxAge: 0, path: '/' });
