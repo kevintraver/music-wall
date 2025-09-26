@@ -41,7 +41,7 @@ async function updateAlbumArt() {
     const albumId = albumIds[i];
 
     try {
-      console.log(`📀 Fetching album ${i + 1}/4: ${albumId}`);
+      console.log(`📀 Fetching album ${i + 1}/${albumIds.length}: ${albumId}`);
 
       const albumData = await spotifyApi.getAlbum(albumId, { market: 'US' });
 
