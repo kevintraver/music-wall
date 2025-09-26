@@ -1,30 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import QRCode from 'qrcode';
-import os from 'os';
-
-function getLocalIP() {
-  const interfaces = os.networkInterfaces();
-  for (const name of Object.keys(interfaces)) {
-    const networkInterface = interfaces[name];
-    if (networkInterface) {
-      for (const iface of networkInterface) {
-        if (iface.family === 'IPv4' && !iface.internal) {
-          return iface.address;
-        }
-      }
-    }
-  }
-  return 'localhost';
-}
-
-const localIP = getLocalIP();
+import { APP_BASE_URL } from '@/lib/utils/env';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ albumId: string }> }
 ) {
   const { albumId } = await params;
-  const url = `http://${localIP}:3000/album/${albumId}`;
+  const requestUrl = new URL(request.url);
+  const defaultBase = `${requestUrl.protocol}//${requestUrl.host}`;
+  const baseUrl = (APP_BASE_URL || defaultBase).replace(/\/$/, '');
+  const url = `${baseUrl}/album/${albumId}`;
 
   try {
     const qr = await QRCode.toDataURL(url);

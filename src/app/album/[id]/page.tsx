@@ -7,6 +7,7 @@ import { normalizeQueue } from "@/lib/spotify/queue";
 import { getTokens } from "@/lib/auth/tokens";
 import { logger } from "@/lib/utils/logger";
 import { getAlbums, setAlbumTracks, saveAlbumsToStorage } from "@/lib/utils/localStorage";
+import { getWebSocketUrl } from "@/lib/utils/get-websocket-url";
 
 interface Track {
   id: string;
@@ -47,7 +48,7 @@ export default function AlbumPage() {
 
 
   useEffect(() => {
-    const base = `http://${window.location.hostname}:3000`;
+    const base = window.location.origin;
     setApiBase(base);
 
     const makeVariants = (id: string): string[] => {
@@ -183,10 +184,11 @@ export default function AlbumPage() {
     const connect = () => {
       if (ws && ws.readyState === WebSocket.OPEN) return;
 
-      ws = new WebSocket(`ws://${window.location.hostname}:3002`);
+      const wsUrl = getWebSocketUrl();
+      ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
-        logger.websocket('Album WebSocket connected');
+        logger.websocket('Album WebSocket connected', { url: wsUrl });
         reconnectAttempts = 0;
 
         // Start heartbeat

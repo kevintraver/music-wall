@@ -7,6 +7,7 @@ import { normalizeQueue } from "@/lib/spotify/queue";
 import { getTokens, clearTokens } from "@/lib/auth/tokens";
 import { logger } from "@/lib/utils/logger";
 import { getAlbums, addAlbum, removeAlbum, saveAlbumsToStorage, resetToDefaults, setAlbumTracks } from "@/lib/utils/localStorage";
+import { getWebSocketUrl } from "@/lib/utils/get-websocket-url";
 import AddAlbumModal from "@/components/admin/AddAlbumModal";
 import AlbumWall from "@/components/admin/AlbumWall";
 
@@ -198,11 +199,12 @@ export default function AdminPage() {
     const connect = () => {
       if (ws && ws.readyState === WebSocket.OPEN) return;
 
-      ws = new WebSocket(`ws://${window.location.hostname}:3002`);
+      const wsUrl = getWebSocketUrl();
+      ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        logger.websocket('Admin WebSocket connected');
+        logger.websocket('Admin WebSocket connected', { url: wsUrl });
         setWsConnected(true);
         reconnectAttempts = 0;
         // UI can render while snapshot arrives

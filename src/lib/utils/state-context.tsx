@@ -4,6 +4,7 @@ import React, { createContext, useContext, useReducer, useEffect, ReactNode } fr
 import { Album, Track } from '@/websocket/types';
 import { getAlbums as getClientAlbums } from '@/lib/utils/localStorage';
 import { logger } from '@/lib/utils/logger';
+import { getWebSocketUrl } from '@/lib/utils/get-websocket-url';
 
 // State interface
 interface AppState {
@@ -110,10 +111,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     const connect = () => {
       if (ws && ws.readyState === WebSocket.OPEN) return;
 
-      ws = new WebSocket(`ws://${window.location.hostname}:3002`);
+      const wsUrl = getWebSocketUrl();
+      ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
-        logger.websocket('Main wall WebSocket connected to port 3002');
+        logger.websocket('Main wall WebSocket connected', { url: wsUrl });
         reconnectAttempts = 0;
         dispatch({ type: 'SET_LOADING', payload: { key: 'playback', value: false } });
         dispatch({ type: 'SET_LOADING', payload: { key: 'queue', value: false } });

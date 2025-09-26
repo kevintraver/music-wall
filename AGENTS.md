@@ -131,6 +131,8 @@ src/
 - Client connections handle reconnection automatically
 - Test WebSocket messages in browser DevTools console
 - Debug polling with `WS_POLLING_INTERVAL` environment variable
+- Override the browser WebSocket endpoint with `NEXT_PUBLIC_WS_URL` when exposing the app over tunnels like ngrok; otherwise the client falls back to `ws://<hostname>:NEXT_PUBLIC_WS_PORT` (default `3002`).
+- QR code generation resolves `APP_BASE_URL` (falling back to the incoming request host) so ensure it is set when tunnelling.
 
 ### Spotify Integration
 - All Spotify API calls happen server-side (WebSocket server or API routes)

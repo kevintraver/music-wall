@@ -26,6 +26,16 @@ Open http://localhost:3000 to view the app.
 - If you prefer the app to run on `http://localhost:3000` while the Spotify redirect uses `127.0.0.1`, set `APP_BASE_URL=http://localhost:3000`. The callback exchanges tokens on the Spotify host and then redirects to `APP_BASE_URL` for `/callback/success`.
 - The `SPOTIFY_REDIRECT_URI` must match character-for-character (scheme, host, port, path, no trailing slash) in both the authorize URL and the token exchange.
 
+### Remote Access with ngrok
+
+If you want guests outside your local network to use the wall while you tunnel with ngrok:
+
+- Start an ngrok tunnel for the Next.js app (`ngrok http 3000`). Use the generated `https://` domain.
+- Update `.env` to set `APP_BASE_URL` and `SPOTIFY_REDIRECT_URI` to that domain (e.g. `https://your-tunnel.ngrok-free.app/callback`) and add the same redirect URI in the Spotify developer dashboard.
+- Expose the WebSocket server as well (`ngrok http 3002`) and set `NEXT_PUBLIC_WS_URL=wss://your-ws-tunnel.ngrok-free.app` in `.env`. Browsers will use this URL instead of the default `ws://hostname:3002`.
+- Restart `npm run dev` (and `npm run ws`) after changing environment variables so the new values are picked up.
+- QR codes use `APP_BASE_URL`, so guests scanning them will land on the tunneled domain once the variable is set.
+
 ### Album Data Model (localStorage)
 
 - Albums live entirely in the browser’s localStorage under the key `songwall_albums`.
