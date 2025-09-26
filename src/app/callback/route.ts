@@ -61,7 +61,22 @@ export async function GET(request: NextRequest) {
       console.error('Failed updating WS tokens:', e);
     }
 
-    const baseUrl = APP_BASE_URL || `http://${host}`;
+    const protocol = request.nextUrl.protocol;
+    const baseFallback = `${protocol}//${host}`;
+    let baseUrl = APP_BASE_URL;
+    if (baseUrl) {
+      try {
+        const desiredHost = new URL(baseUrl).host;
+        if (desiredHost !== host) {
+          baseUrl = baseFallback;
+        }
+      } catch {
+        baseUrl = baseFallback;
+      }
+    } else {
+      baseUrl = baseFallback;
+    }
+    baseUrl = baseUrl.replace(/\/$/, '');
     const res = NextResponse.redirect(`${baseUrl}/callback/success?access_token=${encodeURIComponent(
       accessToken
     )}&refresh_token=${encodeURIComponent(refreshToken)}&expires_in=${expiresIn}`);

@@ -35,6 +35,7 @@ If you want guests outside your local network to use the wall while you tunnel w
 - Expose the WebSocket server as well (`ngrok http 3002`) and set `NEXT_PUBLIC_WS_URL=wss://your-ws-tunnel.ngrok-free.app` in `.env`. Browsers will use this URL instead of the default `ws://hostname:3002`.
 - Restart `npm run dev` (and `npm run ws`) after changing environment variables so the new values are picked up.
 - QR codes use `APP_BASE_URL`, so guests scanning them will land on the tunneled domain once the variable is set.
+- Keep the Spotify redirect URI pointing to your admin host (typically `http://localhost:3000/callback`); public tunnels only need `APP_BASE_URL`/`NEXT_PUBLIC_WS_URL` because admin auth always flows through the local server.
 
 ### Album Data Model (localStorage)
 
